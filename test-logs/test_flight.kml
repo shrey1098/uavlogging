@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Test Flight</name>
+    <Placemark>
+      <name>Flight Path</name>
+      <LineString>
+        <coordinates>
+          77.1025,28.7041,10
+          77.1030,28.7045,20
+          77.1035,28.7050,35
+          77.1040,28.7055,50
+          77.1045,28.7060,65
+          77.1050,28.7065,80
+          77.1055,28.7070,95
+          77.1060,28.7075,100
+          77.1065,28.7080,95
+          77.1070,28.7085,80
+          77.1075,28.7090,65
+          77.1080,28.7095,50
+          77.1085,28.7100,35
+          77.1090,28.7105,20
+          77.1095,28.7110,10
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>

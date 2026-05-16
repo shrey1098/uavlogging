@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	html,
+	body {
+		@apply bg-bg-base text-text-primary;
+		font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+		font-size: 13px;
+		letter-spacing: 0.01em;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	body {
+		background-image:
+			linear-gradient(rgba(212, 167, 44, 0.025) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(212, 167, 44, 0.025) 1px, transparent 1px);
+		background-size: 32px 32px;
+	}
+
+	.font-display {
+		font-family: 'Barlow Condensed', monospace;
+		font-weight: 800;
+		letter-spacing: 0.01em;
+	}
+
+	.font-mono {
+		font-family: 'JetBrains Mono', monospace;
+	}
+}
+
+@layer components {
+	/* Panels */
+	.panel {
+		@apply rounded border border-border bg-bg-panel;
+	}
+	.panel-2 {
+		@apply rounded border border-border bg-bg-panel-2;
+	}
+
+	/* Chips */
+	.chip {
+		@apply inline-flex items-center gap-1 rounded-sm border border-border-strong px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+	}
+	.chip-gold {
+		@apply border-gold/40 bg-gold/10 text-gold;
+	}
+	.chip-warn {
+		@apply border-gold/40 bg-gold/10 text-gold;
+	}
+	.chip-ok {
+		@apply border-gold/40 bg-gold/10 text-gold;
+	}
+	.chip-danger {
+		@apply border-scarlet-bright/40 bg-scarlet-bright/10 text-scarlet-bright;
+	}
+	.chip-info {
+		@apply border-border-strong bg-white/[0.03] text-text-secondary;
+	}
+
+	/* Buttons */
+	.btn {
+		@apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded border border-border-strong bg-bg-elev px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-primary transition-colors hover:border-gold hover:text-gold;
+	}
+	.btn-primary {
+		@apply border-scarlet bg-scarlet font-bold text-text-primary hover:border-scarlet-bright hover:bg-scarlet-bright hover:text-text-primary;
+	}
+	.btn-gold {
+		@apply border-gold bg-gold font-bold text-bg-base hover:border-gold-bright hover:bg-gold-bright;
+	}
+	.btn-ghost {
+		@apply bg-transparent;
+	}
+	.btn-mob {
+		@apply flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-border-strong bg-bg-elev px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-text-primary;
+	}
+	.btn-mob-primary {
+		@apply border-scarlet bg-scarlet text-text-primary;
+	}
+
+	/* Inputs */
+	.input {
+		@apply w-full rounded-md border border-border-strong bg-bg-base px-3.5 py-3 text-[13px] text-text-primary focus:border-gold focus:outline-none;
+	}
+
+	/* Labels */
+	.label-tiny {
+		@apply text-[9.5px] font-semibold uppercase tracking-[0.12em] text-text-dim;
+	}
+
+	/* Numbers */
+	.big-num {
+		@apply font-display text-[56px] leading-none tracking-tight;
+	}
+	.med-num {
+		@apply font-display text-[32px] leading-none;
+	}
+	.stat-num {
+		@apply font-display text-[28px] tracking-tight;
+	}
+	.stat-label {
+		@apply text-[10px] uppercase tracking-widest text-text-dim;
+	}
+
+	/* Progress */
+	.progress {
+		@apply relative h-1.5 overflow-hidden rounded-sm bg-bg-elev;
+	}
+	.progress > span {
+		@apply block h-full rounded-sm bg-gold;
+	}
+
+	/* Cards */
+	.stat-card {
+		@apply rounded-lg border border-border bg-bg-panel p-4;
+	}
+	.tap-row {
+		@apply flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-bg-panel px-4 py-3.5 active:bg-bg-panel-2;
+	}
+
+	/* Corner brackets */
+	.corner {
+		@apply relative;
+	}
+	.corner::before,
+	.corner::after {
+		content: '';
+		@apply absolute h-2 w-2 border-gold;
+	}
+	.corner::before {
+		@apply -left-px -top-px border-l border-t;
+	}
+	.corner::after {
+		@apply -bottom-px -right-px border-b border-r;
+	}
+	.corner > .c-tr {
+		content: '';
+		@apply absolute -right-px -top-px h-2 w-2 border-r border-t border-gold;
+	}
+	.corner > .c-bl {
+		content: '';
+		@apply absolute -bottom-px -left-px h-2 w-2 border-b border-l border-gold;
+	}
+
+	/* Scan line */
+	.scan::before {
+		content: '';
+		@apply pointer-events-none absolute inset-0;
+		background: repeating-linear-gradient(
+			180deg,
+			transparent 0 3px,
+			rgba(255, 255, 255, 0.015) 3px 4px
+		);
+	}
+
+	/* Map background */
+	.map-bg {
+		background-image:
+			linear-gradient(rgba(212, 167, 44, 0.06) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(212, 167, 44, 0.06) 1px, transparent 1px);
+		background-size: 24px 24px;
+		background-color: #050402;
+	}
+
+	/* Headings */
+	.h1 {
+		@apply font-display text-[22px] tracking-tight sm:text-[28px];
+	}
+
+	/* Tables */
+	.tbl {
+		@apply w-full border-collapse;
+	}
+	.tbl th {
+		@apply border-b border-border px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-text-dim;
+	}
+	.tbl td {
+		@apply border-b border-border px-3 py-3 text-xs;
+	}
+	.tbl tr:hover td {
+		@apply bg-bg-panel-2;
+	}
+
+	/* Page padding */
+	.page-pad {
+		@apply p-3.5 sm:p-5 lg:p-6;
+	}
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+::-webkit-scrollbar-thumb {
+	background: #3a2a30;
+	border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
