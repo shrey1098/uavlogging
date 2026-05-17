@@ -13,6 +13,20 @@
 			rel="stylesheet"
 		/>
 		%sveltekit.head%
+		<style>
+			.map-label {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: white;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+}
+.leaflet-container {
+    background: #0a0a0a;
+}
+		</style>
 	</head>
 	<body data-sveltekit-preload-data="hover" class="bg-bg-base font-geist text-text-primary">
 		<div style="display: contents">%sveltekit.body%</div>

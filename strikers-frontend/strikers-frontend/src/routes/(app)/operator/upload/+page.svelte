@@ -43,12 +43,11 @@
 			Pick the file from your phone or transfer it from the ground station.
 		</div>
 	</div>
-
-	<!-- Drop zone -->
+<!-- Drop zone -->
+<label for="file-input">
 	<Panel
 		corner
 		class="mt-6 cursor-pointer p-10 text-center"
-		onclick={() => fileInput.click()}
 	>
 		<div class="text-[56px] leading-none text-gold">⬆</div>
 		<div class="mt-3.5 text-[15px] font-bold">
@@ -62,14 +61,16 @@
 			{/if}
 		</div>
 	</Panel>
+</label>
 
-	<input
-		bind:this={fileInput}
-		type="file"
-		accept=".bin,.tlog,.ulg,.csv,.kml,.log"
-		onchange={handleFileSelect}
-		class="hidden"
-	/>
+<input
+	id="file-input"
+	bind:this={fileInput}
+	type="file"
+	accept=".bin,.tlog,.ulg,.csv,.kml,.log"
+	onchange={handleFileSelect}
+	class="hidden"
+/>
 
 	{#if selectedFile}
 		<Button

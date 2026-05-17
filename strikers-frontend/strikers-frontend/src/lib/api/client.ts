@@ -1,8 +1,8 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
 import { browser } from '$app/environment';
-import { PUBLIC_API_BASE_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
-const BASE_URL = PUBLIC_API_BASE_URL || 'http://localhost:5000';
+const BASE_URL = env.PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 // In-memory token storage (more secure than localStorage for access tokens)
 let accessToken: string | null = null;

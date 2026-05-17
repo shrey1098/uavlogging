@@ -1,4 +1,4 @@
-import { api, extractList, extractOne } from './client';
+import { api, extractList } from './client';
 import type {
 	ApiResponse,
 	FlightLog,
@@ -8,13 +8,14 @@ import type {
 
 export const flightLogsApi = {
 	async list(params?: ListParams): Promise<FlightLog[]> {
-		const { data } = await api.get<ApiResponse<unknown>>('/api/flight-logs', { params });
-		return extractList<FlightLog>(data.data, 'flightLogs');
+		const { data } = await api.get<any>('/api/flight-logs', { params });
+		const raw = data.message ?? data.data;
+		return extractList<FlightLog>(raw, 'flightLogs');
 	},
 
 	async get(id: string): Promise<FlightLog> {
-		const { data } = await api.get<ApiResponse<unknown>>(`/api/flight-logs/${id}`);
-		return extractOne<FlightLog>(data.data, 'flightLog') as FlightLog;
+		const { data } = await api.get<any>(`/api/flight-logs/${id}`);
+		return (data.message?.log ?? data.message?.flightLog) as FlightLog;
 	},
 
 	async upload(
@@ -24,7 +25,7 @@ export const flightLogsApi = {
 		const form = new FormData();
 		form.append('logFile', file);
 
-		const { data } = await api.post<ApiResponse<unknown>>(
+		const { data } = await api.post<any>(
 			'/api/flight-logs/upload',
 			form,
 			{
@@ -36,12 +37,13 @@ export const flightLogsApi = {
 				}
 			}
 		);
-		return extractOne<FlightLogUploadResponse>(data.data, 'flightLog') as FlightLogUploadResponse;
+		const raw = data.message;
+		return { flightLog: raw.flightLog, mission: raw.mission ?? null } as FlightLogUploadResponse;
 	},
 
 	async reparse(id: string): Promise<FlightLog> {
-		const { data } = await api.post<ApiResponse<unknown>>(`/api/flight-logs/${id}/reparse`);
-		return extractOne<FlightLog>(data.data, 'flightLog') as FlightLog;
+		const { data } = await api.post<any>(`/api/flight-logs/${id}/reparse`);
+		return (data.message?.log ?? data.message?.flightLog) as FlightLog;
 	},
 
 	async remove(id: string): Promise<void> {

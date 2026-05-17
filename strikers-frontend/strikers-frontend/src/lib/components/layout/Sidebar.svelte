@@ -2,6 +2,8 @@
 	import { page } from '$app/stores';
 	import { user, isCommander } from '$lib/stores';
 	import { cn } from '$lib/utils';
+	import { goto } from '$app/navigation';
+	import { authApi } from '$lib/api';
 
 	type NavItem = { href: string; label: string };
 	type NavGroup = { title: string; items: NavItem[] };
@@ -57,7 +59,7 @@
 	const nav = $derived($isCommander ? commanderNav : operatorNav);
 </script>
 
-<aside class="hidden w-56 shrink-0 flex-col border-r border-border bg-bg-panel lg:flex">
+<aside class="hidden w-56 shrink-0 flex-col border-r border-border bg-bg-panel lg:flex overflow-y-auto">
 	<div class="border-b border-border px-4 py-3.5">
 		<div class="label-tiny mb-1">Unit</div>
 		<div class="text-[13px] font-semibold">17 JAK LI · ALPHA</div>
@@ -83,26 +85,36 @@
 		{/each}
 	</nav>
 
-	{#if $user}
-		<div class="mt-auto border-t border-border px-3.5 py-3.5">
-			<div class="flex items-center gap-2.5">
-				<div
-					class="flex h-8 w-8 items-center justify-center rounded-full bg-scarlet text-[11px] font-extrabold text-text-primary"
-				>
-					{$user.name
-						.split(' ')
-						.map((n) => n[0])
-						.join('')
-						.slice(0, 2)
-						.toUpperCase()}
-				</div>
-				<div class="min-w-0 flex-1">
-					<div class="truncate text-[11px] font-semibold">{$user.name}</div>
-					<div class="label-tiny mt-0.5">
-						{$user.role === 'super_admin' ? 'Commander' : 'Operator'}
-					</div>
+{#if $user}
+	<div class="mt-auto border-t border-border px-3.5 py-3.5 pb-6">
+		<div class="flex items-center gap-2.5">
+			<div
+				class="flex h-8 w-8 items-center justify-center rounded-full bg-scarlet text-[11px] font-extrabold text-text-primary"
+			>
+				{$user.name
+					.split(' ')
+					.map((n) => n[0])
+					.join('')
+					.slice(0, 2)
+					.toUpperCase()}
+			</div>
+			<div class="min-w-0 flex-1">
+				<div class="truncate text-[11px] font-semibold">{$user.name}</div>
+				<div class="label-tiny mt-0.5">
+					{$user.role === 'super_admin' ? 'Commander' : 'Operator'}
 				</div>
 			</div>
 		</div>
-	{/if}
+		<button
+			onclick={async () => {
+				await authApi.logout();
+				user.set(null);
+				goto('/login');
+			}}
+			class="label-tiny mt-2 text-scarlet-bright hover:text-scarlet transition-colors"
+		>
+			← LOGOUT
+		</button>
+	</div>
+{/if}
 </aside>

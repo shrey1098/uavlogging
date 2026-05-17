@@ -39,11 +39,11 @@
 </script>
 
 {#if ready && $user}
-	<div class="flex min-h-screen flex-col">
-		<TopBar />
-		<div class="flex flex-1 overflow-hidden">
-			<Sidebar />
-			<main class="main-content flex-1 overflow-y-auto pb-20 lg:pb-0">
+	<div class="flex h-screen flex-col overflow-hidden">
+    <TopBar />
+    <div class="flex flex-1 overflow-hidden min-h-0">
+        <Sidebar />
+        <main class="main-content flex-1 overflow-y-auto pb-20 lg:pb-0">
 				{@render children?.()}
 			</main>
 		</div>
