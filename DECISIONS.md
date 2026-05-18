@@ -277,3 +277,134 @@ they exist as candidates for future entries.
   optionality) is resolved here in favour of optional/nullable.
   Drifts #1 (parseStatus enum) and #2 (FlightLog field names) remain
   open — separate future entries.
+
+---
+
+## #003 — Operator gamification: readiness score + tiered achievement badges
+
+- Date: 2026-05-18
+- Status: OPEN
+- Decision:
+  Replace all hardcoded/placeholder readiness and achievement display
+  with a computed system. Baseline (Part A) confirmed: today the
+  readiness score, skill bars, and achievements are static literals in
+  the frontend; the only genuinely computed metric is the parser's
+  per-flight `anomalyScore`.
+
+  ### 1. Readiness score (per operator, 0–100, computed)
+  Weighted composition. All constants are named, tunable parameters —
+  they may be adjusted later WITHOUT a new decision entry (tuning is a
+  Notion-tracked minor change; only the component set/weights below are
+  binding).
+
+  | Component | Weight | Definition |
+  |---|---|---|
+  | Flight Quality | 40 | `100 − avg(anomalyScore)` across the operator's flights |
+  | Currency | 25 | Full marks if flown within last 14 days; linear decay to 0 by 60 days since last flight |
+  | Experience | 20 | Log-scaled accumulated flight hours; plateaus (~diminishing past ~100h) |
+  | Volume | 10 | Log-scaled total sortie count; plateaus |
+  | Live Ops | 5 | Non-zero if operator has any Real Ops flights on record |
+
+  `anomalyScore` definition (for commander interpretation, recorded so
+  it is not misread): parser-computed 0–100 per flight, higher = worse.
+  Weighted sum of telemetry alerts (crash 40, failsafe 25, EKF variance
+  20, fence breach 20, voltage sag 15, GPS glitch 12, vibration 10,
+  motor imbalance 10, battery low 10; critical severity ×1.5), flight
+  events, voltage-sag depth, and GPS-quality penalty; capped at 100. It
+  measures how poor the flight DATA looks, not strictly pilot fault — a
+  drone fault and pilot error both raise it. Acceptable as a coarse
+  skill signal because it is only 40% of readiness and averaged over
+  many flights, but commanders must read it as data-quality, not a
+  clean blame metric.
+
+  ### 2. Achievement badges (tiered, count-based)
+  Two independent classification axes, BOTH selected by the operator at
+  flight-log upload (alongside the required drone selection), each
+  strictly single-select:
+
+  - **Time axis** — `Day` | `Night`
+  - **Type axis** — `Surveillance` | `Drop` | `Obstacle Training` |
+    `Navigation/Waypoint` | `FPV` | `Maintenance Test Flight`
+
+  One sortie increments its Time badge AND its Type badge
+  independently. Example: a night drop → Night +1 and Drop +1.
+
+  `Maintenance Test Flight` is a loggable Type value that increments
+  NOTHING — not its Type badge, not the Time badge, not currency, not
+  any readiness component's volume/experience count. It exists purely
+  so a post-repair check sortie has an honest record and is not
+  mis-tagged as a skill sortie. Flights of this Type are excluded from
+  all gamification and from the Volume/Experience readiness inputs.
+
+  Badge tiers per category (count thresholds, Tier 1 → Tier 10),
+  uniform across all Time and Type categories:
+  `5 · 10 · 20 · 35 · 60 · 100 · 150 · 225 · 325 · 500`
+
+  ### 3. Real Ops badge (commander-gated)
+  Separate category, 5 tiers, thresholds (real-mission count):
+  `1 · 3 · 7 · 15 · 30`
+  Counts purely on number of Real Ops flights flown by the operator.
+  It does NOT inspect Time/Type sub-classification for tier purposes
+  (a real op may carry Time/Type metadata, but only the real-op count
+  drives this ladder).
+
+  ### 4. Classification authority
+  Every sortie is TRAINING by default. A flight counts as Real Ops ONLY
+  when the commander (`super_admin`) uploads it and assigns it to a
+  specific operator via the Real Ops upload path. Operators can never
+  self-classify a flight as Real Ops. This refines the sortieType
+  essence call: training/live is not an operator-set field — live is
+  exclusively commander-asserted at upload.
+
+  ### 5. Display rule
+  Only the HIGHEST earned tier per category is displayed (not the full
+  tier history). Shown in two places: the commander operators-list
+  (against each operator's name) and the operator's own profile page.
+
+- Rationale:
+  Product thesis is operator performance tracking. A readiness number
+  and achievement set that are hardcoded are theatre, not a record.
+  This makes them computed from real flight data. Quality-dominant
+  weighting keeps the score honest; heavy currency weighting ensures a
+  skilled-but-stale pilot reads as not-ready, which is the commander's
+  actual need. Compounding tier ladder gives early motivation and a
+  meaningful long-service ceiling. Commander-gated Real Ops prevents
+  operators inflating live-readiness; maintenance exclusion prevents
+  airframe checks padding pilot skill.
+
+- Per-layer actions:
+  - Backend: Add achievement/progress data model — per-operator
+    per-category sortie counters + derived current tier; achievement
+    definitions (category, tier thresholds) as the ladders above. Add
+    `timeClass` (`day|night`) and `typeClass`
+    (`surveillance|drop|obstacle|navigation|fpv|maintenance_test`)
+    fields to the flight-log model, set at upload. Implement readiness
+    computation service with the five named components and tunable
+    constants; expose via API for operator (own) and super_admin (all).
+    Increment logic: on a counted flight, +1 to the matching Time and
+    Type counters; `maintenance_test` increments nothing and is
+    excluded from Volume/Experience inputs. Real Ops counter increments
+    only on commander Real-Ops upload path. Enforce that Real Ops
+    classification is settable only by `super_admin` (ties to #002
+    access model).
+  - Parser: No structural action. `anomalyScore` already produced and
+    is consumed as-is by the backend readiness service. Confirm no
+    parser change required.
+  - Frontend: Flight-log upload — add Time single-select and Type
+    single-select alongside the existing required drone dropdown
+    (#002). Replace hardcoded readiness hero, skill bars, and
+    achievements with values from the new API. Render only highest tier
+    per category. Surface badges on the commander operators-list and on
+    the operator's own profile. Real Ops upload UI is commander-only
+    (operator never sees a Real Ops classification control).
+  - Seed: When seed/reseed runs, populate realistic per-operator
+    sortie distributions across Time/Type so badge tiers and readiness
+    scores render meaningfully in the demo. No separate decision; rides
+    the #001/#002 reseed.
+
+- Notes:
+  Readiness tuning constants (decay window, plateau curves) are
+  adjustable as Notion-tracked minor changes — only the component set
+  and weights here are binding. Real Ops category name is provisional;
+  if renamed, that is a label-only Notion change unless it alters the
+  data contract.

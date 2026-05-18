@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { useDrones } from '$lib/api/queries';
-	import { Panel, Chip, Loading, ErrorState } from '$lib/components/ui';
 	import { extractError } from '$lib/utils';
-
+	import { Panel, Button, Chip, Loading, ErrorState } from '$lib/components/ui';
 	const query = useDrones();
 
 	const drones = $derived($query.data ?? []);
@@ -22,10 +21,13 @@
 </script>
 
 <div class="page-pad">
-	<div class="mb-3.5">
-		<div class="label-tiny">FLEET ROSTER · UNIT WIDE</div>
-		<h1 class="h1 mt-1">FLEET · {drones.length} AIRFRAMES</h1>
-	</div>
+	<div class="mb-3.5 flex items-end justify-between">
+    <div>
+        <div class="label-tiny">FLEET ROSTER · UNIT WIDE</div>
+        <h1 class="h1 mt-1">FLEET · {drones.length} AIRFRAMES</h1>
+    </div>
+    <Button href="/commander/drones/new" variant="primary" size="sm">+ ADD DRONE</Button>
+</div>
 
 	{#if $query.isLoading}
 		<Loading label="Loading fleet..." />
@@ -53,11 +55,11 @@
 					<Panel corner class="cursor-pointer p-2.5 hover:border-gold">
 						<div class="flex items-start justify-between gap-1">
 							<div class="font-display text-base leading-tight">{(drone as any).name}</div>
-							<Chip variant={statusVariant(drone)}>{statusLabel(drone)}</Chip>
-						</div>
-						<div class="mt-0.5 text-[10px] text-text-dim">
-							{(drone as any).manufacturer ?? ''} {(drone as any).model ?? ''}
-						</div>
+<Chip variant={statusVariant(drone)}>{statusLabel(drone)}</Chip>
+</div>
+<div class="mt-0.5 text-[10px] text-text-dim">
+    SN {(drone as any).serialNumber ?? '—'} · {(drone as any).model ?? '—'}
+</div>
 						<div class="mt-2 grid grid-cols-2 gap-1 text-[11px]">
 							<div>
 								<span class="text-text-dim">SORTIES</span>
