@@ -1,22 +1,30 @@
 <script lang="ts">
 	import { useDrones } from '$lib/api/queries';
-	import { Panel, Button, Chip, Loading, ErrorState } from '$lib/components/ui';
+	import { Panel, Chip, Loading, ErrorState } from '$lib/components/ui';
 	import { extractError } from '$lib/utils';
 
 	const query = useDrones();
 
-	function statusVariant(s?: string): any {
-		if (s === 'maintenance') return 'warn';
-		if (s === 'grounded') return 'danger';
-		if (s === 'new') return 'info';
-		return 'ok';
+	const drones = $derived($query.data ?? []);
+	const active = $derived((drones as any[]).filter(d => d.isActive !== false));
+	const inactive = $derived((drones as any[]).filter(d => d.isActive === false));
+	const totalHours = $derived(
+		(drones as any[]).reduce((s, d) => s + (d.totalFlightTime ?? 0) / 3600, 0).toFixed(0)
+	);
+
+	function statusVariant(drone: any): any {
+		return drone.isActive !== false ? 'ok' : 'danger';
+	}
+
+	function statusLabel(drone: any): string {
+		return drone.isActive !== false ? 'ACTIVE' : 'INACTIVE';
 	}
 </script>
 
 <div class="page-pad">
 	<div class="mb-3.5">
 		<div class="label-tiny">FLEET ROSTER · UNIT WIDE</div>
-		<h1 class="h1 mt-1">FLEET · {($query.data ?? []).length} AIRFRAMES</h1>
+		<h1 class="h1 mt-1">FLEET · {drones.length} AIRFRAMES</h1>
 	</div>
 
 	{#if $query.isLoading}
@@ -24,49 +32,47 @@
 	{:else if $query.error}
 		<ErrorState message={extractError($query.error)} onRetry={() => $query.refetch()} />
 	{:else}
-		<div class="mb-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+		<div class="mb-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
 			<Panel class="p-3.5">
-				<div class="stat-label">READY</div>
-				<div class="stat-num mt-1 text-gold">
-					{($query.data ?? []).filter((d) => !d.status || d.status === 'ready').length}
-				</div>
+				<div class="stat-label">ACTIVE</div>
+				<div class="stat-num mt-1 text-gold">{active.length}</div>
 			</Panel>
 			<Panel class="p-3.5">
-				<div class="stat-label">MAINTENANCE</div>
-				<div class="stat-num mt-1 text-gold">
-					{($query.data ?? []).filter((d) => d.status === 'maintenance').length}
-				</div>
-			</Panel>
-			<Panel class="p-3.5">
-				<div class="stat-label">GROUNDED</div>
-				<div class="stat-num mt-1 text-scarlet-bright">
-					{($query.data ?? []).filter((d) => d.status === 'grounded').length}
-				</div>
+				<div class="stat-label">INACTIVE</div>
+				<div class="stat-num mt-1 text-scarlet-bright">{inactive.length}</div>
 			</Panel>
 			<Panel class="p-3.5">
 				<div class="stat-label">TOTAL HOURS</div>
-				<div class="stat-num mt-1">
-					{($query.data ?? []).reduce((s, d) => s + (d.totalFlightHours ?? 0), 0).toFixed(0)}
-				</div>
+				<div class="stat-num mt-1">{totalHours}h</div>
 			</Panel>
 		</div>
 
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-			{#each $query.data ?? [] as drone}
-				<a href="/commander/drones/{drone._id}">
+			{#each drones as drone}
+				<a href="/commander/drones/{(drone as any)._id}">
 					<Panel corner class="cursor-pointer p-2.5 hover:border-gold">
-						<div class="flex items-start justify-between">
-							<div class="font-display text-base">{drone.name}</div>
-							<Chip variant={statusVariant(drone.status)}>{drone.status ?? 'READY'}</Chip>
+						<div class="flex items-start justify-between gap-1">
+							<div class="font-display text-base leading-tight">{(drone as any).name}</div>
+							<Chip variant={statusVariant(drone)}>{statusLabel(drone)}</Chip>
 						</div>
-						<div class="mt-0.5 text-[10px] text-text-dim">{drone.manufacturer} {drone.model}</div>
+						<div class="mt-0.5 text-[10px] text-text-dim">
+							{(drone as any).manufacturer ?? ''} {(drone as any).model ?? ''}
+						</div>
 						<div class="mt-2 grid grid-cols-2 gap-1 text-[11px]">
-							<div><span class="text-text-dim">CYC</span> {drone.totalCycles ?? 0}</div>
+							<div>
+								<span class="text-text-dim">SORTIES</span>
+								{(drone as any).totalFlights ?? 0}
+							</div>
 							<div>
 								<span class="text-text-dim">HRS</span>
-								{(drone.totalFlightHours ?? 0).toFixed(0)}
+								{((drone as any).totalFlightTime ?? 0 / 3600).toFixed(0)}
 							</div>
 						</div>
+						{#if (drone as any).propSize}
+							<div class="mt-1 text-[10px] text-text-dim">
+								{(drone as any).frameType?.replace('_', ' ').toUpperCase()} · {(drone as any).propSize}
+							</div>
+						{/if}
 					</Panel>
 				</a>
 			{/each}

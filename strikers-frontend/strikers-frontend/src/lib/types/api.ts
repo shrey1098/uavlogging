@@ -60,6 +60,8 @@ export type FrameType =
 	| 'fixed_wing'
 	| 'vtol'
 	| 'tricopter'
+	| 'fpv_quadcopter'
+	| 'trg'
 	| 'other';
 
 export type FlightController = 'ardupilot' | 'px4' | 'dji' | 'betaflight' | 'other';
@@ -68,22 +70,30 @@ export type Drone = {
 	_id: string;
 	name: string;
 	frameType: FrameType;
-	flightController: FlightController;
-	manufacturer: string;
-	model: string;
-	serialNumber: string;
-	maxTakeoffWeight: number;
+	flightController?: string;
+	manufacturer?: string;
+	model?: string;
+	serialNumber?: string;
+	maxTakeoffWeight?: number;
+	payloadCapacity?: number; // kilograms
+	propSize?: string;
+	nightCapability?: string;
+	range?: number; // km
+	ewCompliance?: string;
+	remarks?: string;
+	registrationNumber?: string;
+	tags?: string[];
 	owner: string;
-	totalFlightHours?: number;
-	totalCycles?: number;
-	status?: 'ready' | 'maintenance' | 'grounded' | 'new';
+	totalFlightTime?: number; // seconds
+	totalFlights?: number;
+	status?: 'active' | 'inactive';
 	createdAt: string;
 	updatedAt: string;
 };
 
 export type CreateDroneRequest = Omit<
 	Drone,
-	'_id' | 'owner' | 'totalFlightHours' | 'totalCycles' | 'status' | 'createdAt' | 'updatedAt'
+	'_id' | 'owner' | 'totalFlightTime' | 'totalFlights' | 'status' | 'createdAt' | 'updatedAt'
 >;
 
 // ---------- Operator (DGCA license records, separate from User accounts) ----------
@@ -183,7 +193,7 @@ export type FlightLog = {
 	anomalyScore?: number;
 	alertCount?: number;
 
-	mission: string | Mission;
+	mission?: string | Mission; // optional — nullable per #002
 	drone?: string | Drone;
 	owner: string;
 
@@ -223,7 +233,7 @@ export type FlightAlert = {
 
 export type FlightLogUploadResponse = {
 	flightLog: FlightLog;
-	mission: Mission;
+	mission?: Mission | null;
 };
 
 // ---------- List query params ----------

@@ -19,27 +19,31 @@ export const flightLogsApi = {
 	},
 
 	async upload(
-		file: File,
-		onProgress?: (percent: number) => void
-	): Promise<FlightLogUploadResponse> {
-		const form = new FormData();
-		form.append('logFile', file);
+	file: File,
+	droneId: string,
+	missionId?: string,
+	onProgress?: (percent: number) => void
+): Promise<FlightLogUploadResponse> {
+	const form = new FormData();
+	form.append('logFile', file);
+	form.append('drone', droneId);
+	if (missionId) form.append('mission', missionId);
 
-		const { data } = await api.post<any>(
-			'/api/flight-logs/upload',
-			form,
-			{
-				headers: { 'Content-Type': 'multipart/form-data' },
-				onUploadProgress: (e) => {
-					if (e.total && onProgress) {
-						onProgress(Math.round((e.loaded * 100) / e.total));
-					}
+	const { data } = await api.post<any>(
+		'/api/flight-logs/upload',
+		form,
+		{
+			headers: { 'Content-Type': 'multipart/form-data' },
+			onUploadProgress: (e) => {
+				if (e.total && onProgress) {
+					onProgress(Math.round((e.loaded * 100) / e.total));
 				}
 			}
-		);
-		const raw = data.message;
-		return { flightLog: raw.flightLog, mission: raw.mission ?? null } as FlightLogUploadResponse;
-	},
+		}
+	);
+	const raw = data.message;
+	return { flightLog: raw.flightLog, mission: raw.mission ?? null } as FlightLogUploadResponse;
+},
 
 	async reparse(id: string): Promise<FlightLog> {
 		const { data } = await api.post<any>(`/api/flight-logs/${id}/reparse`);

@@ -125,17 +125,19 @@ export const useFlightLog = (id: string) =>
 		}
 	});
 
-export const useUploadFlightLog = () => {
-	const qc = useQueryClient();
+export function useUploadFlightLog() {
 	return createMutation({
-		mutationFn: ({ file, onProgress }: { file: File; onProgress?: (p: number) => void }) =>
-			flightLogsApi.upload(file, onProgress),
+		mutationFn: ({ file, droneId, missionId, onProgress }: {
+			file: File;
+			droneId: string;
+			missionId?: string;
+			onProgress?: (p: number) => void;
+		}) => flightLogsApi.upload(file, droneId, missionId, onProgress),
 		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
-			qc.invalidateQueries({ queryKey: queryKeys.missions.all });
+			queryClient.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
 		}
 	});
-};
+}
 
 export const useReparseFlightLog = () => {
 	const qc = useQueryClient();
