@@ -1,0 +1,29 @@
+name,serial_number,manufacturer,model,frame_type,prop_size,flight_controller,payload_capacity,night_capb,Range,ew_compliance,registration_number,status,tags,remarks
+RPAV Trinetra,001,Aeroarc,Trinetra V1,quadcopter,10 inch,NVIDIA Tegra X2,0.2,Nil,5,Nil,,active,Svl
+Q5,002,Idea Forge,Q5HA,quadcopter,,,0.3,Nil,10,Nil,,active,Long Rg Svl
+Q5,003,Idea Forge,Q5HA,quadcopter,,,0.3,Nil,10,Nil,,inactive,Long Rg Svl,dibrugarh
+Spectre 2M,004,Sagar Def Engg Pvt Ltd,SDE Spectre 2M,quadcopter,15 inch,,,Nil,8,Nil,,active,Long Rg Svl
+IZI Sky Pro,005,IZI,IZI Sky Pro,quadcopter,7 inch,,,Nil,5,Nil,,active,Trg
+IZI Sky Pro,006,IZI,IZI Sky Pro,quadcopter,7 inch,,,Nil,5,Nil,,inactive,Trg,01 x leg bkn
+IZI Spectra,007,IZI,IZI Spectra,quadcopter,8 inch,,,Nil,20,Nil,,inactive,Svl-Trg,01 x prop bkn
+IZI Mini-X,008,IZI,IZI Mini X,quadcopter,2.5 inch,,,Nil,4,Nil,,active,Trg
+IZI Mini-X,009,IZI,IZI Mini X,quadcopter,2.5 inch,,,Nil,4,Nil,,active,Trg
+IZI Nano Pro,010,IZI,IZI Nano Pro,trg,2 inch,,,Nil,.05,Nil,,active,Trg
+IZI Nano Pro,011,IZI,IZI Nano Pro,trg,2 inch,,,Nil,.05,Nil,,active,Trg
+Nabhayan Pro,012,Not Oro,Nabhayan Pro,trg,2 inch,,,Nil,.05,Nil,,active,Trg
+DJI Neo,013,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+DJI Neo,014,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+DJI Neo,015,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+DJI Neo,016,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+DJI Neo,017,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+DJI Neo,018,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+DJI Neo,019,DJI,DJI Neo 1,trg,2 inch,,,Nil,1,Nil,,"active ",Trg
+Shakti Drone,020,7012 EME Bn,Shakti Class,10_inch_fpv_quadcopter,10 inch,TBS Lucid H7,1,Nil,5,Nil,,active,Svl-Drop-Trg
+Shakti Drone,021,7012 EME Bn,Shakti Class,10_inch_fpv_quadcopter,10 inch,TBS Lucid H7,1,Nil,5,Nil,,active,Svl-Drop-Trg
+Shakti Drone,022,7012 EME Bn,Shakti Class,10_inch_fpv_quadcopter,10 inch,TBS Lucid H7,1,Nil,5,Nil,,active,Svl-Drop-Trg
+Shakti Drone,023,7012 EME Bn,Shakti Class,10_inch_fpv_quadcopter,10 inch,TBS Lucid H7,1,Nil,5,Nil,,active,Svl-Drop-Trg
+Sudharshan Drone,024,Abhyuday Bharat,Sudharshan Class,quadcopter,30 inch,Orange Cube+,5,Low Light Camera,15,Nil,,inactive,Long Rg Svl-Drop-Trg,crashed in ATP
+STIFF FPV,025,STIFF,"STIFF FPV 5""",5_inch_fpv_quadcopter,5 inch,Zerodrag Nova,0.5,Nil,2,Nil,,active,Trg
+STIFF FPV,026,STIFF,"STIFF FPV 5""",5_inch_fpv_quadcopter,5 inch,Zerodrag Nova,0.5,Nil,2,Nil,,active,Trg
+STIFF FPV,027,STIFF,"STIFF FPV 5""",5_inch_fpv_quadcopter,5 inch,Zerodrag Nova,0.5,Nil,2,Nil,,active,Trg
+IRS Quadcopter,028,IRS,IRS Quadcopter,quadcopter,15 inch,,,Nil,5,Nil,,active,Trg

@@ -29,17 +29,57 @@ const droneSchema = new mongoose.Schema(
       trim: true,
       maxlength: 100,
     },
+    // #001 — frameType enum extended with trg, fpv_quadcopter
     frameType: {
       type: String,
-      enum: ['quadcopter', 'hexacopter', 'octocopter', 'fixed_wing', 'vtol', 'tricopter', 'other'],
+      enum: [
+        'quadcopter',
+        'hexacopter',
+        'octocopter',
+        'fixed_wing',
+        'vtol',
+        'tricopter',
+        'fpv_quadcopter',
+        'trg',
+        'other',
+      ],
       default: 'quadcopter',
     },
     flightController: {
       type: String,
-      enum: ['ardupilot', 'px4', 'dji', 'betaflight', 'other'],
-      default: 'ardupilot',
+      trim: true,
     },
-    // Regulatory / registration
+    // #001 — new field: propeller size, freetext (e.g. "10 inch")
+    propSize: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    // #001 — new field: night capability. Default literal "Nil"
+    nightCapability: {
+      type: String,
+      trim: true,
+      default: 'Nil',
+    },
+    // #001 — new field: range in kilometres
+    range: {
+      type: Number, // kilometres
+      min: 0,
+      default: null,
+    },
+    // #001 — new field: EW compliance. Default literal "Nil"
+    ewCompliance: {
+      type: String,
+      trim: true,
+      default: 'Nil',
+    },
+    // #001 — new field: freetext remarks
+    remarks: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: null,
+    },
     registrationNumber: {
       type: String,
       trim: true,
@@ -48,14 +88,14 @@ const droneSchema = new mongoose.Schema(
       type: Number, // grams
       min: 0,
     },
-    // Payload capacity
+    // #001 — payloadCapacity unit changed: grams -> KILOGRAMS (breaking)
     payloadCapacity: {
-      type: Number, // grams
+      type: Number, // kilograms
       min: 0,
+      default: null,
     },
-    // Maintenance
     totalFlightTime: {
-      type: Number, // seconds — accumulates across missions
+      type: Number, // seconds
       default: 0,
     },
     totalFlights: {
