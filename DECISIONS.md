@@ -153,7 +153,7 @@ they exist as candidates for future entries.
 ## #001 — Drone schema extension + 17 JAK LI fleet import
 
 - Date: 2026-05-18
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend], DONE [seed] — CLOSED
 - Decision:
   Extend the `Drone` model for the live 17 JAK LI fleet import. Full DB
   wipe and reseed from CSV — no migration, no preservation of existing
@@ -219,7 +219,7 @@ they exist as candidates for future entries.
 ## #002 — Access model: per-operator isolation + shared read-only drone inventory
 
 - Date: 2026-05-18
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend], DONE [seed] — CLOSED
 - Decision:
   Consolidates and closes the previously pending Mission-scope /
   data-isolation question. Mission entity is **retained** — not dropped.
@@ -283,7 +283,7 @@ they exist as candidates for future entries.
 ## #003 — Operator gamification: readiness score + tiered achievement badges
 
 - Date: 2026-05-18
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend profile], OPEN [frontend home — hardcoded readiness/chips still present, see #007/Notion]
 - Decision:
   Replace all hardcoded/placeholder readiness and achievement display
   with a computed system. Baseline (Part A) confirmed: today the
@@ -414,7 +414,7 @@ they exist as candidates for future entries.
 ## #004 — Restore HTTP dispatch between backend and parser
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend], DONE [parser] — CLOSED
 - Decision:
   The backend → parser wire is HTTP, not subprocess. Restore the
   Session-2 HTTP dispatch architecture, which is the system's intended
@@ -548,7 +548,7 @@ they exist as candidates for future entries.
 ## #005 — Cloudflare R2 as canonical file store for flight logs
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend] — CLOSED (parser/frontend no-action per entry)
 - Sequencing: This entry MUST land before #004's backend slice can
   be executed. #004 dispatches a `file_url` to the parser; that URL
   is what this entry provides. Backend chat is on hold for #004
@@ -684,3 +684,214 @@ Once #005 is DONE on the backend side:
   binding constraint is that URLs are time-limited and generated
   fresh per dispatch. The numeric TTL can be adjusted via
   Notion-tracked minor change without a new entry.
+
+---
+
+## #006 — Reconcile `parseStatus` enum (resolves Part A drift #1)
+
+- Date: 2026-05-22
+- Status: OPEN
+- Decision:
+  Backend's enum is authoritative. Frontend conforms.
+
+  Canonical `parseStatus` values:
+  `pending | processing | completed | failed | skipped`
+
+  Frontend's previous `ParseStatus` union
+  (`queued | parsing | parsed | failed`) is replaced.
+
+  Mapping for any frontend display logic that previously used the old
+  values:
+  - `queued`   → `pending`
+  - `parsing`  → `processing`
+  - `parsed`   → `completed`
+  - `failed`   → `failed` (unchanged)
+  - (new)      → `skipped` (for logs that bypass parsing, e.g. maintenance
+                 test in future workflows; render as a neutral state)
+
+- Rationale:
+  Backend's set is more expressive (`skipped` has no frontend equivalent;
+  `pending` vs `processing` distinguishes "not yet started" from "in
+  flight," which the frontend collapsed into `parsing` and lost). It is
+  also already what every Mongo document carries — flipping the backend
+  would require a data migration AND a parser change, both of which are
+  avoidable. Frontend is the cheaper side to align.
+
+  Active impact: this drift is currently misrendering every completed
+  parse in the UI. Operators see flight logs stuck on `queued`/`parsing`
+  even after a successful parse, because the value the API returns
+  (`completed`) is not in the frontend's union. #006 resolves this.
+
+- Per-layer actions:
+  - Backend: No change. Enum already correct.
+  - Parser: No change. Parser writes the canonical values directly to
+    Mongo via pymongo and is already aligned.
+  - Frontend: Update the `ParseStatus` type in `src/lib/types/api.ts` to
+    `'pending' | 'processing' | 'completed' | 'failed' | 'skipped'`.
+    Update any conditional rendering keyed on the old values (search
+    for `'queued'`, `'parsing'`, `'parsed'` across the frontend tree
+    and replace per the mapping above). Verify flight list/detail
+    pages render correctly for a freshly parsed log.
+  - Seed: No action.
+
+- Notes:
+  Resolves Part A drift #1. Part A is append-only — do not edit it;
+  this entry is the authoritative reconciliation going forward.
+
+---
+
+## #007 — Reconcile FlightLog field names + expose new fields (resolves Part A drift #2, extends with #005)
+
+- Date: 2026-05-22
+- Status: OPEN
+- Decision:
+  Backend's field names are authoritative. Frontend conforms. Backend
+  additionally exposes fields that #005 introduced and that the parsed
+  output requires.
+
+  ### Canonical `FlightLog` fields the frontend type must adopt:
+
+  | Old frontend name        | New canonical (backend) name |
+  |--------------------------|------------------------------|
+  | `originalFilename`       | `originalName`               |
+  | `storedPath`             | `storedName`                 |
+  | `fileExtension`          | (removed — derivable from `originalName`; not stored) |
+  | (missing)                | `filePath`                   |
+  | (missing)                | `r2Key`                      |
+  | (missing)                | `parsedData` (ref to ParsedFlightData) |
+
+  ### `parseError` shape correction:
+  Backend stores `parseError: { message, stack, code }`. Frontend
+  currently types it as `string` and renders it as `[object Object]`.
+  Frontend must type it as an object with at minimum `message`, and
+  render `parseError.message` (never the whole object).
+
+  ### Telemetry / events / alerts location:
+  Backend's authoritative location for `telemetry`, `events`, `alerts`,
+  `flightModes`, `summary`, and `anomalyScore` is on the
+  **`ParsedFlightData`** document, NOT on `FlightLog`. The frontend
+  currently models `telemetry`, `events`, `alerts` directly on
+  `FlightLog`, which does not match the backend payload.
+
+  Frontend type must be restructured:
+  - `FlightLog` carries upload metadata, parse status, ownership,
+    classification, and a `parsedData` reference/payload.
+  - All flight data (telemetry, events, alerts, summary, flight path,
+    anomaly score, flight modes) lives under
+    `flightLog.parsedData.{...}`.
+
+  Frontend already reads through `populate('parsedData')` from the
+  backend (`flightLogController.getLog`), so the data is present in
+  the response — only the type and consumers need restructuring.
+
+  ### `summary` field-name alignment:
+  Backend `ParsedFlightData.summary` uses:
+  `startTime`, `endTime`, `durationSeconds`, `maxAltitude`, `maxSpeed`
+  (in m/s), `totalDistance` (in metres), `anomalyScore` on the parent
+  document.
+
+  Frontend's previously-declared denormalised fields on `FlightLog`
+  (`startTime`, `durationSeconds`, `maxAltitudeMeters`, `maxSpeedMps`,
+  `totalDistanceKm`, `anomalyScore`, `alertCount`) are removed from the
+  `FlightLog` type. Display surfaces read from `flightLog.parsedData.summary`
+  and convert units at the display layer (e.g. `totalDistance / 1000`
+  for km).
+
+- Rationale:
+  Backend names already match Mongoose schema, controllers, and the
+  parser's writes; changing them would cascade across all three layers
+  for no benefit. Frontend is the cheaper side to align. The
+  `parsedData` restructure removes a long-standing fiction in the
+  frontend type (it pretended telemetry lived on `FlightLog`) and
+  matches what the API actually returns.
+
+  Drift is not currently rendering blank fields only because frontend
+  consumers tend to guard with `?? '—'` and optional chains, masking
+  the mismatch. Once any consumer assumes the old field names exist,
+  it silently shows nothing. This resolves it cleanly.
+
+- Per-layer actions:
+  - Backend: No change. Already canonical. The `getLog` controller
+    already populates `parsedData`; confirm `getLogs` (list endpoint)
+    also populates or selects `parsedData.summary` + `anomalyScore`
+    if the list view renders those fields — if so, add the projection;
+    if not, leave as-is.
+  - Parser: No change. Already writes to `ParsedFlightData` at
+    canonical paths.
+  - Frontend: Rewrite `FlightLog` and related types in `src/lib/types/api.ts`
+    to match. Restructure all flight-log consumers to read flight data
+    from `flightLog.parsedData.*` rather than `flightLog.*`. Type
+    `parseError` as object; render `.message`. Add `r2Key` to the type
+    (read-only — never written from frontend). Convert m/s → display
+    units and metres → km at the display layer, not in the type.
+  - Seed: No action.
+
+- Notes:
+  Resolves Part A drift #2 and the #005 extension (`r2Key` not in
+  frontend type). The unit conversion expectation is documented here
+  so future contributors don't recreate denormalised fields on the
+  type "for convenience."
+
+---
+
+## #008 — Standardise API response envelope
+
+- Date: 2026-05-22
+- Status: OPEN
+- Decision:
+  Single canonical response envelope across all backend routes:
+
+  ```
+  {
+    "success": <boolean>,
+    "data":    <payload | null>,
+    "message": <string — human-readable status; NOT a payload container>,
+    "meta":    <optional — pagination, totals, etc.>,
+    "error":   <optional — { code, details } on failures>
+  }
+  ```
+
+  Payload always lives under `data`. `message` is a status/description
+  string ONLY — never a payload container.
+
+  Frontend simplifies: read every payload from `data.data`. Remove the
+  defensive `data.data ?? data.message` pattern from all API client
+  modules.
+
+- Rationale:
+  Current backend response helpers produce mixed shapes — some routes
+  return the payload under `data`, others under `message`. Frontend
+  guards with `data.data ?? data.message` everywhere. The defensive
+  read works today but silently fails any time a new route is written
+  off the wrong template. This is a contract drift waiting to break a
+  future feature.
+
+  Locking `data` as the only payload location costs a small backend
+  cleanup pass and removes a class of bug entirely. `message` becomes
+  what its name implies — a string for the user/log, not a payload
+  carrier.
+
+- Per-layer actions:
+  - Backend: Audit response helpers (`sendSuccess`, `sendCreated`,
+    `sendError`, `sendNotFound`, `sendForbidden`, etc. in
+    `src/utils/response.js`) and any controllers that bypass them.
+    Ensure every successful response places its payload under `data`
+    and uses `message` only for a string. Identify and fix any routes
+    that currently shove payloads into `message`.
+  - Parser: No action. Parser does not produce HTTP responses to the
+    frontend.
+  - Frontend: Remove `data.data ?? data.message` fallbacks in every
+    file under `src/lib/api/`. Read `data.data` directly. Update the
+    `extractList` helper if it relies on the fallback.
+  - Seed: No action.
+
+- Notes:
+  Audit list for backend during execution: any route file under
+  `src/routes/` and controllers under `src/controllers/` — pay
+  particular attention to the `auth`, `flight-logs`, `operators`,
+  and `readiness` controllers since the frontend code reads
+  `data.data ?? data.message` against all of these.
+
+  Once #008 is DONE on both sides, the `extractList`/`extractRecord`
+  helpers in the frontend can be simplified to assume `data.data`
+  shape and the fallback path can be deleted, not just bypassed.
