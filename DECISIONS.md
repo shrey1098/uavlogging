@@ -408,3 +408,137 @@ they exist as candidates for future entries.
   and weights here are binding. Real Ops category name is provisional;
   if renamed, that is a label-only Notion change unless it alters the
   data contract.
+
+---
+
+## #004 — Restore HTTP dispatch between backend and parser
+
+- Date: 2026-05-22
+- Status: OPEN
+- Decision:
+  The backend → parser wire is HTTP, not subprocess. Restore the
+  Session-2 HTTP dispatch architecture, which is the system's intended
+  design and was working end-to-end before being accidentally
+  overwritten during #003 backend execution.
+
+  ### 1. Architecture (binding)
+
+  - **Backend** dispatches parse jobs via `fetch(PARSER_SERVICE_URL/parse, …)`
+    with JSON body `{ log_id, file_url, log_type, mongo_uri }`.
+    `file_url` is the R2 URL (presigned where required), NOT a local
+    path. Backend does NOT spawn the parser as a child process.
+  - **Parser** remains a FastAPI service exposing `POST /parse` and
+    `GET /health`. Accepts the HTTP body, downloads from `file_url` via
+    `httpx`, processes as a FastAPI BackgroundTask, returns 202 Accepted
+    immediately. Parser does NOT accept argv / CLI invocation.
+  - File transfer between backend and parser is via R2 URL, never local
+    disk. This is what makes the wire deployment-portable.
+
+  ### 2. Deployment shape (initially)
+
+  Backend and parser are hosted on the **same cloud host** at first.
+  Backend reaches the parser at a same-host URL
+  (e.g. `http://localhost:PORT` or an internal address) — the dispatch
+  mechanism is identical whether the parser is on the same host or a
+  remote one. No architectural difference between the two deployments.
+
+  ### 3. Future-portability requirement (binding)
+
+  Code in BOTH backend and parser must carry inline comments marking
+  the boundaries that change when the parser is later migrated to its
+  own cloud host. These are not TODOs — the design already works for
+  the migrated case; the comments exist to make the migration
+  surface obvious during a future move.
+
+  Required comment markers (exact wording flexible; intent binding):
+
+  - Backend `parserWorker.js`, at the `PARSER_SERVICE_URL` config read:
+    `// #004 portability: parser URL — change when parser is hosted on
+    a separate cloud service.`
+  - Backend `parserWorker.js`, at the `fetch(...)` dispatch call:
+    `// #004 portability: HTTP dispatch boundary. No code change
+    required to retarget across hosts; only PARSER_SERVICE_URL
+    moves.`
+  - Parser `main.py`, near the `POST /parse` handler:
+    `// #004 portability: this is the cross-host entrypoint. File
+    transfer is by R2 URL (file_url), already host-independent. No
+    structural change required when parser moves to its own host.`
+
+  ### 4. #003 progress hook re-attachment (binding)
+
+  The #003 gamification progress hook (`applyProgressForLog`) was
+  added in the regressed subprocess version inside the `child.on(
+  'close')` callback. On the restored HTTP dispatch this is the wrong
+  attachment point — there is no subprocess close event.
+
+  Correct attachment point on the HTTP dispatch: the progress hook
+  fires when the parse is **confirmed complete**, i.e. when the
+  `FlightLog.parseStatus` transitions to `completed` AFTER the parser
+  has written `ParsedFlightData` and returned. Since the FastAPI
+  parser processes asynchronously via BackgroundTasks and the HTTP
+  POST returns 202 Accepted immediately (not on completion), the hook
+  cannot fire on the HTTP response.
+
+  Backend must attach the progress hook to the point where the
+  backend itself detects parse completion. Options the backend chat
+  may choose between (no architectural decision needed from this
+  chat — implementation detail):
+  - A status-poll / completion check that runs after dispatch.
+  - The parser calling a backend webhook on completion (introduces a
+    second wire — out of scope for #004, may revisit later).
+  - A Mongoose post-update hook on `FlightLog.parseStatus = completed`.
+
+  Whichever mechanism is chosen, the binding constraint is: the
+  progress hook fires exactly ONCE per successful parse, never on
+  failed parses, never on maintenance-test logs (already gated inside
+  the progress service per #003).
+
+- Rationale:
+  The HTTP dispatch is not a new design choice — it is the existing
+  intended design, accidentally overwritten in #003 execution due to a
+  workspace-staleness error in the backend chat (confirmed). Restoring
+  it costs less than the alternative and matches the deployment direction
+  (R2 already in use, parser CPU profile worth isolating). The
+  subprocess version cannot stand: the parser is FastAPI and does not
+  accept argv, so dispatch as currently shipped will fail at runtime
+  regardless. Deciding "Path B" formally on the record prevents future
+  accidental reverts being treated as architectural drift rather than
+  regressions.
+
+- Per-layer actions:
+  - Backend: Replace the current `child_process.spawn(...)` implementation
+    of `parserWorker.js` with the HTTP-dispatch implementation
+    (`fetch(PARSER_SERVICE_URL/parse, …)` posting `log_id`, `file_url`,
+    `log_type`, `mongo_uri`). Restore the `PARSER_SERVICE_URL` env var.
+    The flightLog upload controller must pass the R2 URL (`fileUrl`),
+    not a local file path, to dispatch. Remove the `--file`, `--log-id`,
+    `--type`, `--mongo-uri` argv path. Re-attach the #003
+    `applyProgressForLog` hook to the parse-completion detection point
+    on the backend side (not to a subprocess close event). Add the
+    portability comments at the two sites named above.
+  - Parser: No structural change. Confirm `POST /parse`, `GET /health`,
+    `ParseJob` body shape, and BackgroundTask processing remain the
+    contract. Add the portability comment at the `POST /parse` handler.
+  - Frontend: No action. Upload flow already posts to the backend
+    upload endpoint; how the backend dispatches to the parser is not a
+    frontend concern.
+  - Seed: No action.
+
+- Notes:
+  Regression source recorded: accidental subprocess revert during
+  Session 7 (#003 backend execution) — workspace state in the backend
+  chat carried the Session 1 subprocess implementation, and the #003
+  progress hook was added on top of that stale base. Not a deliberate
+  architectural choice. No subprocess advantage on record.
+
+  #003 status: the gamification feature itself is not invalidated;
+  only the attachment point of the progress hook moves. Backend will
+  re-apply the hook to the HTTP-dispatch path during #004 execution.
+  Once #004 is DONE, #003's progress mechanism becomes truly active —
+  prior to #004 it was attached to dead code (the subprocess close
+  event that never fires against a FastAPI service).
+
+  Future migration of parser to its own cloud host: NOT a new
+  decision when it happens — only `PARSER_SERVICE_URL` and the parser
+  deployment target change. The architecture in this entry already
+  supports that move; comments mark the surface.
