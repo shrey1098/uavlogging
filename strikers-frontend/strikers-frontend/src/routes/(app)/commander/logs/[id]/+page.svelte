@@ -250,8 +250,9 @@ $effect(() => {
 
 		{#if log.parseError}
 			<Panel class="mt-3.5 p-3.5">
-				<div class="label-tiny mb-1.5 text-scarlet-bright">PARSE ERROR</div>
-				<div class="text-[12px] text-scarlet-bright">{log.parseError}</div>
+				<div class="mt-2 rounded-md border border-scarlet-bright/40 bg-scarlet-bright/10 p-2.5 text-[11px] text-scarlet-bright">
+   	 				{typeof log.parseError === 'object' ? (log.parseError as any)?.message ?? JSON.stringify(log.parseError) : log.parseError}
+				</div>
 			</Panel>
 		{/if}
 	{/if}

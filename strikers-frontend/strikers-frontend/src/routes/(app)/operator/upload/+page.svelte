@@ -12,32 +12,38 @@
 	let fileInput: HTMLInputElement;
 	let progress = $state(0);
 	let selectedFile = $state<File | null>(null);
-	let selectedDroneId = $state<string>('');
-	let selectedMissionId = $state<string>('');
+	let selectedDroneId = $state('');
+	let selectedMissionId = $state('');
+	let timeClass = $state<'day' | 'night'>('day');
+	let typeClass = $state('surveillance');
 	let error = $state<string | null>(null);
+
+	const typeOptions = [
+		{ value: 'surveillance', label: 'Surveillance' },
+		{ value: 'drop', label: 'Drop' },
+		{ value: 'obstacle', label: 'Obstacle Training' },
+		{ value: 'navigation', label: 'Navigation / Waypoint' },
+		{ value: 'fpv', label: 'FPV' },
+		{ value: 'maintenance_test', label: 'Maintenance Test Flight' }
+	];
 
 	function handleFileSelect(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
-		if (file) {
-			selectedFile = file;
-			error = null;
-		}
+		if (file) { selectedFile = file; error = null; }
 	}
 
 	async function handleUpload() {
 		if (!selectedFile) return;
-		if (!selectedDroneId) {
-			error = 'Please select a drone before uploading.';
-			return;
-		}
-		error = null;
-		progress = 0;
+		if (!selectedDroneId) { error = 'Please select a drone before uploading.'; return; }
+		error = null; progress = 0;
 		try {
 			const result = await $upload.mutateAsync({
 				file: selectedFile,
 				droneId: selectedDroneId,
 				missionId: selectedMissionId || undefined,
+				timeClass,
+				typeClass,
 				onProgress: (p) => (progress = p)
 			});
 			goto(`/operator/flights/${result.flightLog._id}`);
@@ -75,24 +81,13 @@
 			</div>
 		</Panel>
 	</label>
-
-	<input
-		id="file-input"
-		bind:this={fileInput}
-		type="file"
-		accept=".bin,.tlog,.ulg,.csv,.kml,.log"
-		onchange={handleFileSelect}
-		class="hidden"
-	/>
+	<input id="file-input" bind:this={fileInput} type="file"
+		accept=".bin,.tlog,.ulg,.csv,.kml,.log" onchange={handleFileSelect} class="hidden" />
 
 	<!-- Drone selector (required) -->
 	<div class="mt-4">
 		<div class="label-tiny mb-1.5">DRONE · REQUIRED</div>
-		<select
-			bind:value={selectedDroneId}
-			class="input w-full"
-			style="font-size: 12px"
-		>
+		<select bind:value={selectedDroneId} class="input w-full" style="font-size: 12px">
 			<option value="">— Select Airframe —</option>
 			{#each drones as drone}
 				<option value={(drone as any)._id}>
@@ -100,27 +95,51 @@
 				</option>
 			{/each}
 		</select>
-		{#if $dronesQuery.isLoading}
-			<div class="mt-1 text-[10px] text-text-dim">Loading drones...</div>
+	</div>
+
+	<!-- Time class (required) -->
+	<div class="mt-3">
+		<div class="label-tiny mb-1.5">TIME OF FLIGHT · REQUIRED</div>
+		<div class="grid grid-cols-2 gap-2">
+			{#each ['day', 'night'] as t}
+				<button
+					type="button"
+					onclick={() => (timeClass = t as 'day' | 'night')}
+					class="rounded border py-2 text-[11px] font-bold uppercase tracking-wider transition-colors"
+					style="border-color: {timeClass === t ? 'rgb(212 167 44)' : 'rgba(255,255,255,0.1)'};
+						   color: {timeClass === t ? 'rgb(212 167 44)' : 'rgba(255,255,255,0.4)'};
+						   background: {timeClass === t ? 'rgba(212,167,44,0.1)' : 'transparent'}"
+				>
+					{t === 'day' ? '☀ DAY' : '☽ NIGHT'}
+				</button>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Type class (required) -->
+	<div class="mt-3">
+		<div class="label-tiny mb-1.5">SORTIE TYPE · REQUIRED</div>
+		<select bind:value={typeClass} class="input w-full" style="font-size: 12px">
+			{#each typeOptions as opt}
+				<option value={opt.value}>{opt.label}</option>
+			{/each}
+		</select>
+		{#if typeClass === 'maintenance_test'}
+			<div class="mt-1 text-[10px] text-gold">
+				⚠ Maintenance Test Flights are not counted toward readiness or badges.
+			</div>
 		{/if}
 	</div>
 
-	<!-- Mission selector (optional) -->
+	<!-- Mission selector (optional, commander only for create — operators just pick existing) -->
 	<div class="mt-3">
 		<div class="label-tiny mb-1.5">MISSION · OPTIONAL</div>
-		<select
-			bind:value={selectedMissionId}
-			class="input w-full"
-			style="font-size: 12px"
-		>
+		<select bind:value={selectedMissionId} class="input w-full" style="font-size: 12px">
 			<option value="">— No Mission —</option>
 			{#each missions as msn}
 				<option value={(msn as any)._id}>{(msn as any).name}</option>
 			{/each}
 		</select>
-		{#if $missionsQuery.isLoading}
-			<div class="mt-1 text-[10px] text-text-dim">Loading missions...</div>
-		{/if}
 	</div>
 
 	{#if selectedFile}
@@ -131,17 +150,10 @@
 			disabled={$upload.isPending || !selectedDroneId}
 			class="mt-3.5"
 		>
-			{#if $upload.isPending}
-				UPLOADING {progress}%
-			{:else}
-				▶ UPLOAD NOW
-			{/if}
+			{$upload.isPending ? `UPLOADING ${progress}%` : '▶ UPLOAD NOW'}
 		</Button>
-
 		{#if $upload.isPending}
-			<div class="progress mt-2">
-				<span style="width: {progress}%"></span>
-			</div>
+			<div class="progress mt-2"><span style="width: {progress}%"></span></div>
 		{/if}
 	{/if}
 
@@ -151,10 +163,9 @@
 		</div>
 	{/if}
 
-	<!-- Steps -->
 	<div class="label-tiny mb-3 mt-7">WHAT HAPPENS NEXT</div>
 	<Panel class="p-4">
-		{#each ['Upload your log file', 'We read it for you', 'Confirm the details', 'Done'] as step, i}
+		{#each ['Upload your log file', 'We read it for you', 'Parser extracts telemetry', 'Readiness updated'] as step, i}
 			<div class="mb-3.5 flex items-start gap-3 last:mb-0">
 				<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-scarlet text-[12px] font-extrabold text-text-primary">
 					{i + 1}
@@ -164,8 +175,8 @@
 					<div class="mt-0.5 text-[11px] text-text-dim">
 						{#if i === 0}Pick the file from your phone
 						{:else if i === 1}Takes about 1 minute
-						{:else if i === 2}Drone, battery, mission type
-						{:else}Your flight is recorded{/if}
+						{:else if i === 2}Flight path, telemetry, alerts extracted
+						{:else}Your score and badges reflect this flight{/if}
 					</div>
 				</div>
 			</div>

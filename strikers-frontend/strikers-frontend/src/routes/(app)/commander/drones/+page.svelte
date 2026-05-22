@@ -50,6 +50,26 @@
 		</div>
 
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+			<!-- Demo drone -->
+<a href="/commander/drones/demo-drone">
+	<Panel corner class="cursor-pointer p-2.5 hover:border-gold">
+		<div class="flex items-start justify-between gap-1">
+			<div class="font-display text-base leading-tight">RPAV Trinetra</div>
+			<Chip variant="ok">ACTIVE</Chip>
+		</div>
+		<div class="mt-0.5 flex items-center gap-1 text-[10px] text-text-dim">
+			SN 024 · Q5HA Mk-II
+			<span class="rounded border border-gold/30 bg-gold/10 px-1 py-0.5 text-[8px] text-gold">DEMO</span>
+		</div>
+		<div class="mt-2 grid grid-cols-2 gap-1 text-[11px]">
+			<div><span class="text-text-dim">SORTIES</span> 147</div>
+			<div><span class="text-text-dim">HRS</span> 55.0</div>
+		</div>
+		<div class="mt-1 text-[10px] text-text-dim">HEXACOPTER · 18 inch</div>
+	</Panel>
+</a>
+
+
 			{#each drones as drone}
 				<a href="/commander/drones/{(drone as any)._id}">
 					<Panel corner class="cursor-pointer p-2.5 hover:border-gold">

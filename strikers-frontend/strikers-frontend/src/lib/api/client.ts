@@ -36,6 +36,13 @@ export const api: AxiosInstance = axios.create({
 	headers: { 'Content-Type': 'application/json' }
 });
 
+api.interceptors.request.use((config) => {
+	if (config.url?.includes('/demo-')) {
+		return Promise.reject(new Error('Demo route — no API call'));
+	}
+	return config;
+});
+
 // Request interceptor — attach Bearer token
 api.interceptors.request.use((config) => {
 	const token = getAccessToken();
@@ -44,6 +51,8 @@ api.interceptors.request.use((config) => {
 	}
 	return config;
 });
+
+
 
 // Response interceptor — auto-refresh on 401
 let isRefreshing = false;

@@ -276,7 +276,7 @@ $effect(() => {
 			</div>
 			{#if log.parseError}
 				<div class="mt-2 rounded-md border border-scarlet-bright/40 bg-scarlet-bright/10 p-2.5 text-[11px] text-scarlet-bright">
-					{log.parseError}
+    				{typeof log.parseError === 'object' ? (log.parseError as any)?.message ?? JSON.stringify(log.parseError) : log.parseError}
 				</div>
 			{/if}
 		{/if}

@@ -233,7 +233,7 @@ export type FlightAlert = {
 
 export type FlightLogUploadResponse = {
 	flightLog: FlightLog;
-	mission?: Mission | null;
+	mission?: Mission | null; // optional — backend no longer returns this per #003
 };
 
 // ---------- List query params ----------
@@ -242,4 +242,5 @@ export type ListParams = {
 	limit?: number;
 	sort?: string;
 	search?: string;
+	owner?: string;
 };

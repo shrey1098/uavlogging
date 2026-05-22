@@ -1,87 +1,78 @@
 const multer = require('multer');
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { v4: uuidv4 } = require('uuid');
 const path = require('path');
-const logger = require('./logger');
+const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
 
-// ── R2 Client ──────────────────────────────────────────────
-const r2 = new S3Client({
-  region: 'auto',
-  endpoint: process.env.R2_ENDPOINT,
-  credentials: {
-    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || 'uploads', 'raw');
+
+// Ensure upload directory exists
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+const ALLOWED_MIME_TYPES = new Set([
+  'application/octet-stream', // .bin, .ulg
+  'text/csv',
+  'text/plain',               // .log, .tlog
+  'application/vnd.google-earth.kml+xml',
+  'application/xml',
+  'text/xml',
+]);
+
+const ALLOWED_EXTENSIONS = new Set(
+  (process.env.ALLOWED_EXTENSIONS || '.bin,.tlog,.ulg,.csv,.kml,.log')
+    .split(',')
+    .map((ext) => ext.trim().toLowerCase())
+);
+
+const MAX_FILE_SIZE = (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 500) * 1024 * 1024;
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueName = `${uuidv4()}${ext}`;
+    cb(null, uniqueName);
   },
 });
 
-const BUCKET = process.env.R2_BUCKET_NAME;
-
-// ── Log type detection ─────────────────────────────────────
-const LOG_TYPE_MAP = {
-  '.bin':  'ardupilot_bin',
-  '.tlog': 'ardupilot_tlog',
-  '.ulg':  'px4_ulg',
-  '.csv':  'csv',
-  '.kml':  'kml',
-  '.log':  'skydroid',
+const fileFilter = (_req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (!ALLOWED_EXTENSIONS.has(ext)) {
+    return cb(
+      new Error(`File type "${ext}" is not allowed. Supported: ${[...ALLOWED_EXTENSIONS].join(', ')}`),
+      false
+    );
+  }
+  cb(null, true);
 };
 
-function detectLogType(filename) {
-  const ext = path.extname(filename).toLowerCase();
-  return LOG_TYPE_MAP[ext] || 'unknown';
-}
-
-// ── Multer — memory storage (buffer → R2) ──────────────────
-const allowedExtensions = (process.env.ALLOWED_EXTENSIONS || '.bin,.tlog,.ulg,.csv,.kml,.log').split(',');
-const maxSizeMB = parseInt(process.env.MAX_FILE_SIZE_MB || '500', 10);
-
 const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: maxSizeMB * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedExtensions.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`File type ${ext} not allowed. Allowed: ${allowedExtensions.join(', ')}`));
-    }
-  },
+  storage,
+  fileFilter,
+  limits: { fileSize: MAX_FILE_SIZE },
 });
 
-// ── Upload buffer to R2 ────────────────────────────────────
-async function uploadToR2(file) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  const storedName = `${uuidv4()}${ext}`;
-  const key = `raw/${storedName}`;
+/**
+ * Detect log format from file extension and original name.
+ * Returns one of: 'ardupilot_bin' | 'ardupilot_tlog' | 'px4_ulg' | 'csv' | 'kml' | 'skydroid' | 'unknown'
+ */
+const detectLogType = (originalName) => {
+  const ext = path.extname(originalName).toLowerCase();
+  const base = path.basename(originalName).toLowerCase();
 
-  await r2.send(new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-    Body: file.buffer,
-    ContentType: file.mimetype || 'application/octet-stream',
-    ContentLength: file.size,
-  }));
-
-  const fileUrl = `${process.env.R2_PUBLIC_URL}/${key}`;
-
-  logger.info(`Uploaded to R2: ${key} (${file.size} bytes)`);
-
-  return {
-    storedName,
-    key,
-    fileUrl,
-    logType: detectLogType(file.originalname),
-  };
-}
-
-// ── Delete from R2 ─────────────────────────────────────────
-async function deleteFromR2(key) {
-  try {
-    await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
-    logger.info(`Deleted from R2: ${key}`);
-  } catch (err) {
-    logger.warn(`Failed to delete from R2: ${key} — ${err.message}`);
+  if (ext === '.bin') return 'ardupilot_bin';
+  if (ext === '.tlog') return 'ardupilot_tlog';
+  if (ext === '.ulg') return 'px4_ulg';
+  if (ext === '.kml') return 'kml';
+  if (ext === '.csv') {
+    // Skydroid CSVs tend to have "skydroid" in their filename
+    if (base.includes('skydroid')) return 'skydroid';
+    return 'csv';
   }
-}
+  if (ext === '.log') return 'ardupilot_bin'; // older ArduPilot text logs
 
-module.exports = { upload, uploadToR2, deleteFromR2, detectLogType };
+  return 'unknown';
+};
+
+module.exports = { upload, detectLogType, UPLOAD_DIR };

@@ -42,6 +42,26 @@ const flightLogSchema = new mongoose.Schema(
       default: 'unknown',
       index: true,
     },
+    // ── #003 — Gamification classification (set at upload) ──────────────
+    // Time axis — single-select, operator-set
+    timeClass: {
+      type: String,
+      enum: ['day', 'night'],
+      default: null,
+    },
+    // Type axis — single-select, operator-set.
+    // maintenance_test increments NOTHING (excluded from all gamification).
+    typeClass: {
+      type: String,
+      enum: ['surveillance', 'drop', 'obstacle', 'navigation', 'fpv', 'maintenance_test'],
+      default: null,
+    },
+    // #003 — Real Ops classification. TRAINING by default.
+    // Settable to true ONLY by super_admin via Real-Ops upload path (#002).
+    isRealOps: {
+      type: Boolean,
+      default: false,
+    },
     // Parse status
     parseStatus: {
       type: String,

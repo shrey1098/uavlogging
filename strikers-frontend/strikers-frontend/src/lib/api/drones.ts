@@ -8,6 +8,7 @@ export const dronesApi = {
     return (Array.isArray(raw) ? raw : raw?.drones ?? []) as Drone[];
 },
 	async get(id: string): Promise<Drone> {
+    if (!id || id === 'skip') return {} as Drone;
     const { data } = await api.get<any>(`/api/drones/${id}`);
     const raw = data.data ?? data.message;
     return (raw?.drone ?? raw) as Drone;

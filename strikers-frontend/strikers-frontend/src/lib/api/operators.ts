@@ -7,9 +7,11 @@ export const operatorsApi = {
 		return extractList<Operator>(data.data, 'operators');
 	},
 	async get(id: string): Promise<Operator> {
-		const { data } = await api.get<ApiResponse<unknown>>(`/api/operators/${id}`);
-		return extractOne<Operator>(data.data, 'operator') as Operator;
-	},
+    if (!id || id === 'skip') return {} as Operator;
+    const { data } = await api.get<any>(`/api/operators/${id}`);
+    const raw = data.data ?? data.message;
+    return (raw?.operator ?? raw) as Operator;
+},
 	async create(payload: CreateOperatorRequest): Promise<Operator> {
 		const { data } = await api.post<ApiResponse<unknown>>('/api/operators', payload);
 		return extractOne<Operator>(data.data, 'operator') as Operator;

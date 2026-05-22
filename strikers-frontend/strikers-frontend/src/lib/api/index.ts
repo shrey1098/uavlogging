@@ -5,3 +5,4 @@ export { operatorsApi } from './operators';
 export { batteriesApi } from './batteries';
 export { missionsApi } from './missions';
 export { flightLogsApi } from './flight-logs';
+export { readinessApi } from './readiness';

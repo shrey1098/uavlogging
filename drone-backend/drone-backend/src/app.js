@@ -15,9 +15,7 @@ const operatorRoutes = require('./routes/operators');
 const batteryRoutes = require('./routes/batteries');
 const missionRoutes = require('./routes/missions');
 const flightLogRoutes = require('./routes/flightLogs');
-
-// ── Model pre-registration ────────────────────────────────────────────────────
-require('./models/ParsedFlightData');
+const readinessRoutes = require('./routes/readiness');
 
 const app = express();
 
@@ -92,6 +90,7 @@ app.use('/api/operators', operatorRoutes);
 app.use('/api/batteries', batteryRoutes);
 app.use('/api/missions', missionRoutes);
 app.use('/api/flight-logs', flightLogRoutes);
+app.use('/api/readiness', readinessRoutes);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req, res) => {

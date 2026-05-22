@@ -13,9 +13,11 @@ import type {
 	CreateDroneRequest,
 	CreateOperatorRequest,
 	CreateBatteryRequest,
-	CreateMissionRequest
+	CreateMissionRequest,
+	FlightLog
 } from '$lib/types';
 
+import { readinessApi } from './readiness';
 // ---------- Auth ----------
 export const useMe = () =>
 	createQuery({
@@ -36,7 +38,8 @@ export const useDrone = (id: string) =>
 	createQuery({
 		queryKey: queryKeys.drones.detail(id),
 		queryFn: () => dronesApi.get(id),
-		enabled: !!id
+		enabled: !!id && id !== 'skip' && id !== 'demo-drone',
+		retry: false
 	});
 
 export const useCreateDrone = () => {
@@ -57,8 +60,11 @@ export const useOperators = (params?: ListParams) =>
 export const useOperator = (id: string) =>
 	createQuery({
 		queryKey: queryKeys.operators.detail(id),
-		queryFn: () => operatorsApi.get(id),
-		enabled: !!id
+		queryFn: async () => {
+			const result = await operatorsApi.get(id);
+			return result ?? ({} as Operator);
+		},
+		enabled: !!id && id !== 'skip'
 	});
 
 export const useCreateOperator = () => {
@@ -116,9 +122,11 @@ export const useFlightLogs = (params?: ListParams) =>
 export const useFlightLog = (id: string) =>
 	createQuery({
 		queryKey: queryKeys.flightLogs.detail(id),
-		queryFn: () => flightLogsApi.get(id),
+		queryFn: async () => {
+			const result = await flightLogsApi.get(id);
+			return result ?? ({} as FlightLog);
+		},
 		enabled: !!id,
-		// Poll while parsing
 		refetchInterval: (q) => {
 			const log = q.state.data;
 			return log?.parseStatus === 'parsing' || log?.parseStatus === 'queued' ? 3000 : false;
@@ -126,15 +134,18 @@ export const useFlightLog = (id: string) =>
 	});
 
 export function useUploadFlightLog() {
+	const qc = useQueryClient();
 	return createMutation({
-		mutationFn: ({ file, droneId, missionId, onProgress }: {
+		mutationFn: ({ file, droneId, missionId, timeClass, typeClass, onProgress }: {
 			file: File;
 			droneId: string;
 			missionId?: string;
+			timeClass: 'day' | 'night';
+			typeClass: string;
 			onProgress?: (p: number) => void;
-		}) => flightLogsApi.upload(file, droneId, missionId, onProgress),
+		}) => flightLogsApi.upload(file, droneId, missionId, timeClass, typeClass, onProgress),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
+			qc.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
 		}
 	});
 }
@@ -148,3 +159,25 @@ export const useReparseFlightLog = () => {
 		}
 	});
 };
+// ---------- Readiness ----------
+export function useMyReadiness() {
+	return createQuery({
+		queryKey: ['readiness', 'me'],
+		queryFn: () => readinessApi.me()
+	});
+}
+
+export function useOperatorReadiness(userId: string) {
+	return createQuery({
+		queryKey: ['readiness', userId],
+		queryFn: () => readinessApi.forOperator(userId),
+		enabled: !!userId && userId.length > 0
+	});
+}
+
+export function useUnitReadiness() {
+	return createQuery({
+		queryKey: ['readiness', 'unit'],
+		queryFn: () => readinessApi.unit()
+	});
+}
