@@ -542,3 +542,145 @@ they exist as candidates for future entries.
   decision when it happens — only `PARSER_SERVICE_URL` and the parser
   deployment target change. The architecture in this entry already
   supports that move; comments mark the surface.
+
+---
+
+## #005 — Cloudflare R2 as canonical file store for flight logs
+
+- Date: 2026-05-22
+- Status: OPEN
+- Sequencing: This entry MUST land before #004's backend slice can
+  be executed. #004 dispatches a `file_url` to the parser; that URL
+  is what this entry provides. Backend chat is on hold for #004
+  pending #005.
+
+### Context (correction of Part A)
+
+The Part A baseline records "Storage — Cloudflare R2 for raw log
+files" and "Backend `parserWorker.js` → HTTP POST to parser `/parse`
+with `log_id`, `file_url`, …". Verification against the synced repo
+during #004 execution found:
+
+- No R2 SDK present in backend.
+- `config/upload.js` is multer disk storage to a local `UPLOAD_DIR`.
+- `FlightLog` model has `filePath` (local) but no `fileUrl`.
+- The upload controller writes a local path; no upload-to-R2 step
+  exists.
+
+Part A was authored from an out-of-date report. Treating Part A as
+append-only: this entry **supersedes** the storage and dispatch
+claims in Part A as they pertain to file transfer. The repo, not
+Part A, is the truth.
+
+### Decision
+
+Adopt Cloudflare R2 as the canonical store for raw flight-log files
+from the moment of upload onward. Build the R2 integration now —
+not deferred to the eventual parser-host split — because:
+
+1. #004's HTTP dispatch requires a `file_url` the parser can fetch
+   from any host. R2 provides exactly that, today, with no later
+   rewrite when the parser is migrated.
+2. Flight logs are the unit's readiness record. Storing them only
+   on a single host's local disk means a host failure destroys the
+   record. R2 provides durability for negligible cost (R2 storage
+   billed per-GB at sub-dollar monthly volumes given fleet scale).
+3. Engineering effort is roughly equivalent whether done now or at
+   migration; doing it now removes a future cutover risk and
+   eliminates the dead-pipe interval that Choice A in the cost
+   analysis would have created.
+
+### Binding shape
+
+- **Backend** uploads every incoming flight log to R2 at receive
+  time. After successful R2 PUT, the file is written to R2 ONLY.
+  No long-lived local copy on the backend host.
+- **`FlightLog` model** gains a `fileUrl` field (string, required
+  on completed uploads). `filePath` is retired from the role of
+  parser-input source; if retained for any transient purpose
+  (e.g. multer's temp upload location before the R2 PUT), it must
+  not be relied on after upload completes.
+- **R2 object key** convention: `flight-logs/<flightLogId>/<storedName>`.
+  Predictable, owner-scoped recovery possible.
+- **Access to the file** from the parser is via the `fileUrl` field.
+  URL form is **presigned, time-limited** (recommend 1-hour TTL),
+  generated at dispatch time — not stored permanently in the
+  database. The database stores the canonical R2 object reference
+  (bucket + key); the presigned URL is generated fresh for each
+  parse dispatch.
+- **Bucket scope**: one R2 bucket for the system. No public access.
+  Backend holds the only credentials. Presigned URLs are the only
+  way the parser (or any other consumer) reads from it.
+
+### Operational and cost envelope
+
+- R2 bucket lives in the same Cloudflare account as the future
+  cloud host. Within the unit's scale (26 operators, projected log
+  volume), monthly R2 cost is expected sub-$5 — recorded as
+  context, not a binding figure.
+- No CDN or public distribution layer. Logs are operational data,
+  not content.
+- Retention policy: indefinite for now. Lifecycle/archival rules
+  are a separate later decision when total volume warrants them.
+
+### #004 unblock
+
+Once #005 is DONE on the backend side:
+- `FlightLog.fileUrl` exists and is populated on every upload.
+- Backend can dispatch to parser with `file_url` being the
+  freshly-generated presigned R2 URL.
+- #004's backend slice executes against a real `fileUrl`. Backend
+  chat resumes #004 work at that point — not before.
+
+- Rationale:
+  Same-host deployment does not eliminate the need for cross-host
+  file access; it only delays it. Building R2 now costs roughly
+  what building it later costs, but removes the migration cutover
+  risk and — more importantly for a military readiness record —
+  gives the unit's flight-log history durability beyond a single
+  host's disk. The cost differential at this scale is not
+  meaningful (cents to single dollars monthly). The durability
+  differential is meaningful: disk-only storage on one server puts
+  the readiness record one hardware failure away from loss.
+
+- Per-layer actions:
+  - Backend: Add Cloudflare R2 SDK (AWS S3 SDK with R2 endpoint,
+    standard). Add bucket credentials to env (`R2_ACCOUNT_ID`,
+    `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
+    `R2_ENDPOINT`). In the upload controller: after multer accepts
+    the file, PUT it to R2 at the key convention above; on success,
+    persist the R2 key on the FlightLog (not the multer temp path);
+    delete the multer temp file. Add a `fileUrl` field to the
+    `FlightLog` schema OR equivalent (R2 key + helper to mint
+    presigned URLs — either shape is acceptable; binding constraint
+    is that the parser receives a working time-limited URL). Provide
+    an internal helper to mint a presigned URL on demand (used by
+    `parserWorker.js` at dispatch time). Once this is DONE, signal
+    that #004 backend slice is unblocked.
+  - Parser: No structural action. Parser already downloads from
+    `file_url` via `httpx` and does not care whether the URL is R2
+    or anything else. Confirm no change.
+  - Frontend: No action. Upload is multipart to the backend endpoint
+    as today; the backend's downstream storage is invisible to
+    frontend.
+  - Seed: No action for current seed (no flight logs in the wipe-
+    reseed state per #002). Future seed flight-log work, if any,
+    must respect the R2 store contract — but not in scope for #005.
+
+- Notes:
+  This entry corrects the Part A baseline's claim that R2 is in
+  use; that claim was based on a Session 2 report that did not
+  match committed code. Future entries should treat Part A as a
+  historical baseline, not an authoritative current-state
+  document — repo verification was required to find this, and the
+  same discipline applies elsewhere.
+
+  Local-disk retention is explicitly NOT a fallback in this
+  architecture. Once R2 is the store, the local upload path
+  (multer's temp dir) is treated as ephemeral pre-PUT staging
+  only — not a parallel store, not a recovery cache.
+
+  Presigned URL TTL recommendation (1 hour) is a tunable; the
+  binding constraint is that URLs are time-limited and generated
+  fresh per dispatch. The numeric TTL can be adjusted via
+  Notion-tracked minor change without a new entry.
