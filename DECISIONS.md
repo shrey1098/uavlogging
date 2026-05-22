@@ -283,7 +283,7 @@ they exist as candidates for future entries.
 ## #003 — Operator gamification: readiness score + tiered achievement badges
 
 - Date: 2026-05-18
-- Status: DONE [backend], DONE [frontend profile], OPEN [frontend home — hardcoded readiness/chips still present, see #007/Notion]
+- Status: DONE [backend], DONE [frontend] — CLOSED
 - Decision:
   Replace all hardcoded/placeholder readiness and achievement display
   with a computed system. Baseline (Part A) confirmed: today the
@@ -690,7 +690,7 @@ Once #005 is DONE on the backend side:
 ## #006 — Reconcile `parseStatus` enum (resolves Part A drift #1)
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend] — CLOSED
 - Decision:
   Backend's enum is authoritative. Frontend conforms.
 
@@ -743,7 +743,7 @@ Once #005 is DONE on the backend side:
 ## #007 — Reconcile FlightLog field names + expose new fields (resolves Part A drift #2, extends with #005)
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend — primary]. Cleanup pending: removal of legacy optional fields from the frontend `FlightLog` type (carried during transition).
 - Decision:
   Backend's field names are authoritative. Frontend conforms. Backend
   additionally exposes fields that #005 introduced and that the parsed
@@ -837,7 +837,7 @@ Once #005 is DONE on the backend side:
 ## #008 — Standardise API response envelope
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend — success path]. Error-path verification pending: confirm frontend reads validation errors from `error.details` (backend moved them there from the legacy top-level `errors` key).
 - Decision:
   Single canonical response envelope across all backend routes:
 
