@@ -743,7 +743,7 @@ Once #005 is DONE on the backend side:
 ## #007 — Reconcile FlightLog field names + expose new fields (resolves Part A drift #2, extends with #005)
 
 - Date: 2026-05-22
-- Status: DONE [backend], DONE [frontend — primary]. Cleanup pending: removal of legacy optional fields from the frontend `FlightLog` type (carried during transition).
+- Status: DONE [backend], DONE [frontend] — CLOSED. Legacy optional fields retained in the frontend `FlightLog` type for transition safety; their eventual removal is internal frontend hygiene (Notion-tracked), not a Part B action.
 - Decision:
   Backend's field names are authoritative. Frontend conforms. Backend
   additionally exposes fields that #005 introduced and that the parsed
@@ -837,7 +837,7 @@ Once #005 is DONE on the backend side:
 ## #008 — Standardise API response envelope
 
 - Date: 2026-05-22
-- Status: DONE [backend], DONE [frontend — success path]. Error-path verification pending: confirm frontend reads validation errors from `error.details` (backend moved them there from the legacy top-level `errors` key).
+- Status: DONE [backend], DONE [frontend] — CLOSED
 - Decision:
   Single canonical response envelope across all backend routes:
 

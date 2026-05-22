@@ -124,11 +124,17 @@ api.interceptors.response.use(
 
 // ---------- Helper: typed error extraction ----------
 export function extractError(err: unknown): string {
-	if (axios.isAxiosError(err)) {
-		return err.response?.data?.message || err.message || 'Network error';
-	}
-	if (err instanceof Error) return err.message;
-	return 'Unknown error';
+    if (axios.isAxiosError(err)) {
+        const res = err.response?.data;
+        if (res?.error?.details) {
+            return Array.isArray(res.error.details)
+                ? res.error.details.map((d: any) => d.msg ?? d.message ?? d).join(', ')
+                : res.message || err.message;
+        }
+        return res?.message || err.message || 'Network error';
+    }
+    if (err instanceof Error) return err.message;
+    return 'Unknown error';
 }
 
 // ---------- Helper: extract single entity from any response shape ----------
