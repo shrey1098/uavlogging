@@ -10,10 +10,17 @@ const startServer = async () => {
   try {
     await connectDB();
 
+    // #003 + #004 — attach the FlightLog post-update hook that fires
+    // the gamification progress increment on parseStatus -> completed.
+    // Must run AFTER mongoose connects; before the HTTP server starts.
+    const { attachParseCompleteHook } = require('./workers/parserWorker');
+    attachParseCompleteHook();
+
     const server = http.createServer(app);
 
-    server.listen(PORT, () => {
-      logger.info(`🚁 Drone Debrief API running on port ${PORT} [${process.env.NODE_ENV}]`);
+    const HOST = process.env.HOST || '0.0.0.0';
+    server.listen(PORT, HOST, () => {
+      logger.info(`🚁 Drone Debrief API running on ${HOST}:${PORT} [${process.env.NODE_ENV}]`);
     });
 
     // ── Graceful shutdown ─────────────────────────────────────────────────────

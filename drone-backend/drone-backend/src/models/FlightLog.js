@@ -23,11 +23,23 @@ const flightLogSchema = new mongoose.Schema(
     },
     storedName: {
       type: String,
-      required: true, // UUID-based name on disk
+      // No longer required — multer temp filename, not durable.
+      // #005: superseded by r2Key as the canonical reference.
     },
+    // Pre-#005 local disk path. Retained for backward compatibility only;
+    // not used after upload completes. Multer's temp dir is treated as
+    // ephemeral pre-PUT staging. Do not rely on this field after upload.
     filePath: {
       type: String,
-      required: true,
+    },
+    // #005 — canonical R2 object reference. Required on completed uploads.
+    // Convention: `flight-logs/<flightLogId>/<storedName>`
+    // The database stores the bucket-relative key only. Presigned URLs
+    // are minted fresh per parse dispatch — never stored.
+    r2Key: {
+      type: String,
+      default: null,
+      index: true,
     },
     fileSize: {
       type: Number, // bytes

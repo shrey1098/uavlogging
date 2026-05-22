@@ -1,7 +1,9 @@
+const fs = require('fs');
 const path = require('path');
 const FlightLog = require('../models/FlightLog');
 const Mission = require('../models/Mission');
 const { detectLogType } = require('../config/upload');
+const { putObject, buildR2Key } = require('../config/r2');
 const { sendSuccess, sendCreated, sendNotFound, sendError } = require('../utils/response');
 const logger = require('../config/logger');
 const { spawnParser } = require('../workers/parserWorker');
@@ -9,7 +11,6 @@ const { buildScopeFilter } = require('./scopeFilter');
 
 exports.uploadLog = async (req, res, next) => {
   try {
-    console.log('UPLOAD DEBUG:', { file: req.file, bodyKeys: Object.keys(req.body) });
     if (!req.file) return sendError(res, 'No file uploaded', 400);
     const { originalname, filename, path: filePath, size, mimetype } = req.file;
     const logType = detectLogType(originalname);
@@ -24,7 +25,6 @@ exports.uploadLog = async (req, res, next) => {
     const isRealOps = req.user.role === 'super_admin' && req.body.isRealOps === true;
 
     // #002 — mission is OPTIONAL and operator-selected (existing only).
-    // No auto-create. Accept a missionId if provided and valid.
     let missionId = null;
     if (req.body.missionId) {
       const m = await Mission.findById(req.body.missionId).select('_id');
@@ -38,11 +38,13 @@ exports.uploadLog = async (req, res, next) => {
       ownerId = req.body.assignToOperatorUserId;
     }
 
+    // Create the FlightLog FIRST so we have an _id for the R2 key.
+    // r2Key starts null; populated after PUT succeeds.
     const flightLog = await FlightLog.create({
       owner: ownerId,
       originalName: originalname,
       storedName: filename,
-      filePath,
+      filePath, // multer temp path — ephemeral, see model note
       fileSize: size,
       mimeType: mimetype,
       logType,
@@ -53,9 +55,30 @@ exports.uploadLog = async (req, res, next) => {
       parseStatus: 'pending',
     });
 
+    // #005 — PUT to R2. R2 is the canonical store. Multer's local file
+    // is pre-PUT staging only; delete it on success or failure.
+    const key = buildR2Key(flightLog._id.toString(), filename);
+    try {
+      await putObject({ key, filePath, contentType: mimetype });
+      flightLog.r2Key = key;
+      await flightLog.save({ validateBeforeSave: false });
+    } catch (r2Err) {
+      // R2 PUT failed — clean up the half-created FlightLog and the
+      // temp file. Surface a 502 so the client can retry.
+      logger.error(`R2 PUT failed for log ${flightLog._id}: ${r2Err.message}`);
+      await FlightLog.deleteOne({ _id: flightLog._id }).catch(() => {});
+      try { fs.unlinkSync(filePath); } catch (_) {}
+      return sendError(res, 'Storage upload failed. Please try again.', 502);
+    }
+
+    // R2 is now the source of truth — delete multer's local file.
+    try { fs.unlinkSync(filePath); } catch (e) {
+      logger.warn(`Could not delete temp file ${filePath}: ${e.message}`);
+    }
+
     logger.info(
-      `Log uploaded: ${originalname} (${logType}) by ${req.user._id} ` +
-      `[time=${timeClass} type=${typeClass} realOps=${isRealOps}]`
+      `Log uploaded: ${originalname} (${logType}) → R2 ${key} ` +
+      `by ${req.user._id} [time=${timeClass} type=${typeClass} realOps=${isRealOps}]`
     );
 
     spawnParser(flightLog._id).catch((err) =>
@@ -121,6 +144,18 @@ exports.deleteLog = async (req, res, next) => {
     const filter = { _id: req.params.id, ...buildScopeFilter(req.user) };
     const log = await FlightLog.findOneAndDelete(filter);
     if (!log) return sendNotFound(res, 'Flight log');
+
+    // #005 — clean R2 in sync with DB. Best-effort: a 404 on R2 (already
+    // gone) shouldn't fail the delete response.
+    if (log.r2Key) {
+      try {
+        const { deleteObject } = require('../config/r2');
+        await deleteObject(log.r2Key);
+      } catch (r2Err) {
+        logger.warn(`R2 DELETE failed for ${log.r2Key}: ${r2Err.message}`);
+      }
+    }
+
     return sendSuccess(res, null, 'Flight log deleted');
   } catch (error) { next(error); }
 };

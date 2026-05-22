@@ -9,7 +9,7 @@ Endpoints:
 Called by Node.js parserWorker.js via HTTP POST:
     {
         "log_id":    "<MongoDB FlightLog _id>",
-        "file_url":  "<R2 file URL>",
+        "file_url":  "<R2 public/presigned URL>",
         "log_type":  "ardupilot_bin | ardupilot_tlog | px4_ulg | csv | kml | skydroid",
         "mongo_uri": "<MongoDB connection string>"
     }
@@ -17,6 +17,7 @@ Called by Node.js parserWorker.js via HTTP POST:
 
 import os
 import sys
+import logging
 import tempfile
 import traceback
 import importlib
@@ -26,6 +27,16 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from utils.db import get_db, mark_processing, mark_completed, mark_failed, write_parsed_data, update_mission_stats
+
+# ── Logging setup ─────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stdout,
+    force=True,
+)
+log = logging.getLogger('parser')
 
 app = FastAPI(title='Drone Debrief Parser Service', version='1.0.0')
 
@@ -60,34 +71,36 @@ def health():
     return {'status': 'ok', 'service': 'drone-debrief-parser'}
 
 
-@app.post('/parse')
+# #004 portability: this is the cross-host entrypoint. File transfer
+# is by R2 URL (file_url), already host-independent. No structural
+# change required when parser moves to its own host.
+@app.post('/parse', status_code=202)
 async def parse(job: ParseJob, background_tasks: BackgroundTasks):
-    """
-    Accepts a parse job and processes it in the background.
-    Returns immediately with 202 Accepted.
-    """
+    """Accepts a parse job and processes it in the background. Returns 202 immediately."""
     if job.log_type not in LOG_TYPE_PARSERS:
         raise HTTPException(status_code=400, detail=f'Unsupported log type: {job.log_type}')
 
+    log.info(f'Job accepted — logId={job.log_id} type={job.log_type}')
     background_tasks.add_task(run_parse_job, job)
     return {'status': 'accepted', 'log_id': job.log_id}
 
 
 async def run_parse_job(job: ParseJob):
-    """Background task — downloads file, parses it, writes to MongoDB."""
-    print(f'[parser] Starting job — logId={job.log_id} type={job.log_type}', flush=True)
+    """Background task — downloads file from R2, parses it, writes to MongoDB."""
+    log.info(f'Starting — logId={job.log_id} type={job.log_type}')
 
     # DB connection
     try:
         db, client = get_db(job.mongo_uri)
     except Exception as e:
-        print(f'[parser] DB connection failed: {e}', file=sys.stderr)
+        log.error(f'DB connection failed: {e}')
         return
 
     try:
         mark_processing(db, job.log_id)
+        log.info(f'Marked processing — logId={job.log_id}')
     except Exception as e:
-        print(f'[parser] Failed to mark processing: {e}', file=sys.stderr)
+        log.error(f'Failed to mark processing: {e}')
         client.close()
         return
 
@@ -98,17 +111,17 @@ async def run_parse_job(job: ParseJob):
     try:
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
             tmp_path = tmp.name
+            log.info(f'Downloading {job.file_url} → {tmp_path}')
             async with httpx.AsyncClient(timeout=120) as http:
                 async with http.stream('GET', job.file_url) as response:
                     response.raise_for_status()
                     async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
                         tmp.write(chunk)
-
-        print(f'[parser] Downloaded to {tmp_path}', flush=True)
+        log.info(f'Download complete — {os.path.getsize(tmp_path)} bytes')
 
     except Exception as e:
         msg = f'File download failed: {str(e)}'
-        print(f'[parser] ERROR: {msg}', file=sys.stderr)
+        log.error(msg)
         mark_failed(db, job.log_id, msg)
         client.close()
         _cleanup(tmp_path)
@@ -116,14 +129,16 @@ async def run_parse_job(job: ParseJob):
 
     # Run parser
     try:
-        parser_module = importlib.import_module(LOG_TYPE_PARSERS[job.log_type])
-        print(f'[parser] Running {LOG_TYPE_PARSERS[job.log_type]}...', flush=True)
+        module_name = LOG_TYPE_PARSERS[job.log_type]
+        log.info(f'Running {module_name}')
+        parser_module = importlib.import_module(module_name)
         parsed_data = parser_module.parse(tmp_path)
+        log.info(f'Parse complete — anomalyScore={parsed_data.get("anomalyScore")}')
 
     except Exception as e:
         msg = f'Parse failed: {str(e)}'
-        print(f'[parser] ERROR: {msg}', file=sys.stderr)
-        traceback.print_exc()
+        log.error(msg)
+        log.error(traceback.format_exc())
         mark_failed(db, job.log_id, msg)
         client.close()
         _cleanup(tmp_path)
@@ -138,18 +153,19 @@ async def run_parse_job(job: ParseJob):
         flight_log = db.flightlogs.find_one({'_id': ObjectId(job.log_id)})
         mission_id = str(flight_log['mission']) if flight_log and flight_log.get('mission') else None
         owner_id   = str(flight_log['owner'])   if flight_log and flight_log.get('owner')   else None
+        log.info(f'FlightLog refs — mission={mission_id} owner={owner_id}')
     except Exception as e:
-        print(f'[parser] WARNING: Could not fetch FlightLog refs: {e}', file=sys.stderr)
+        log.warning(f'Could not fetch FlightLog refs: {e}')
         mission_id = None
         owner_id   = None
 
     # Write ParsedFlightData
     try:
         parsed_data_id = write_parsed_data(db, job.log_id, mission_id, owner_id, parsed_data)
-        print(f'[parser] ParsedFlightData written: {parsed_data_id}', flush=True)
+        log.info(f'ParsedFlightData written — id={parsed_data_id}')
     except Exception as e:
         msg = f'DB write failed: {str(e)}'
-        print(f'[parser] ERROR: {msg}', file=sys.stderr)
+        log.error(msg)
         mark_failed(db, job.log_id, msg)
         client.close()
         return
@@ -158,15 +174,16 @@ async def run_parse_job(job: ParseJob):
     try:
         if mission_id:
             update_mission_stats(db, mission_id, parsed_data.get('summary', {}))
+            log.info(f'Mission stats updated — missionId={mission_id}')
     except Exception as e:
-        print(f'[parser] WARNING: Mission stats update failed: {e}', file=sys.stderr)
+        log.warning(f'Mission stats update failed: {e}')
 
     # Mark completed
     try:
         mark_completed(db, job.log_id, parsed_data_id)
-        print(f'[parser] Done — logId={job.log_id}', flush=True)
+        log.info(f'DONE — logId={job.log_id}')
     except Exception as e:
-        print(f'[parser] WARNING: Failed to mark completed: {e}', file=sys.stderr)
+        log.warning(f'Failed to mark completed: {e}')
 
     client.close()
 
