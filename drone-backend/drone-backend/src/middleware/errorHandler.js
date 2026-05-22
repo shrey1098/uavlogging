@@ -53,10 +53,12 @@ const errorHandler = (err, req, res, _next) => {
     message = `File too large. Maximum size is ${process.env.MAX_FILE_SIZE_MB || 500}MB`;
   }
 
+  // #008 — canonical envelope: data always present, error carries code+details
   const body = {
     success: false,
     message,
-    ...(errors && { errors }),
+    data: null,
+    ...(errors && { error: { code: 'validation', details: errors } }),
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   };
 

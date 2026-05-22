@@ -2,7 +2,6 @@
 	import { useFlightLogs } from '$lib/api/queries';
 	import { Button, Chip, Loading, ErrorState } from '$lib/components/ui';
 	import { formatDateTime, formatDuration, extractError } from '$lib/utils';
-	import { api as _ } from '$lib/api';
 
 	let search = $state('');
 	let typeFilter = $state<'all' | 'training' | 'live'>('all');
@@ -11,17 +10,33 @@
 
 	const filtered = $derived(
 		($query.data ?? []).filter((l) => {
-			if (search && !l.originalFilename.toLowerCase().includes(search.toLowerCase()))
+			if (search && !(l as any).originalName?.toLowerCase().includes(search.toLowerCase()) &&
+				!(l as any).originalFilename?.toLowerCase().includes(search.toLowerCase()))
 				return false;
 			return true;
 		})
 	);
 
 	function statusVariant(s: string) {
-		if (s === 'parsed') return 'ok';
-		if (s === 'parsing' || s === 'queued') return 'warn';
-		if (s === 'failed') return 'danger';
-		return 'default';
+    if (s === 'completed') return 'ok';
+    if (s === 'processing' || s === 'pending') return 'warn';
+    if (s === 'failed') return 'danger';
+    if (s === 'skipped') return 'info';
+    return 'default';
+}
+
+	function statusIcon(s: string) {
+		if (s === 'completed') return '✓';
+		if (s === 'failed') return '✕';
+		if (s === 'skipped') return '—';
+		return '⟳';
+	}
+
+	function statusLabel(s: string) {
+		if (s === 'completed') return 'PARSED';
+		if (s === 'processing') return 'PARSING';
+		if (s === 'pending') return 'QUEUED';
+		return s.toUpperCase();
 	}
 </script>
 
@@ -48,21 +63,9 @@
 	/>
 
 	<div class="flex gap-1.5 overflow-x-auto pb-1">
-		<Button
-			variant={typeFilter === 'all' ? 'primary' : 'default'}
-			size="sm"
-			onclick={() => (typeFilter = 'all')}>ALL</Button
-		>
-		<Button
-			variant={typeFilter === 'training' ? 'primary' : 'default'}
-			size="sm"
-			onclick={() => (typeFilter = 'training')}>TRAINING</Button
-		>
-		<Button
-			variant={typeFilter === 'live' ? 'primary' : 'default'}
-			size="sm"
-			onclick={() => (typeFilter = 'live')}>LIVE</Button
-		>
+		<Button variant={typeFilter === 'all' ? 'primary' : 'default'} size="sm" onclick={() => (typeFilter = 'all')}>ALL</Button>
+		<Button variant={typeFilter === 'training' ? 'primary' : 'default'} size="sm" onclick={() => (typeFilter = 'training')}>TRAINING</Button>
+		<Button variant={typeFilter === 'live' ? 'primary' : 'default'} size="sm" onclick={() => (typeFilter = 'live')}>LIVE</Button>
 	</div>
 
 	{#if $query.isLoading}
@@ -77,21 +80,21 @@
 	{:else}
 		<div class="mt-4 space-y-2">
 			{#each filtered as log}
-				<a href="/operator/flights/{log._id}" class="tap-row">
-					<div
-						class="flex h-9 w-9 items-center justify-center rounded-md bg-bg-elev text-base text-gold"
-					>
-						{log.parseStatus === 'parsed' ? '✓' : log.parseStatus === 'failed' ? '✕' : '⟳'}
+				<a href="/operator/flights/{(log as any)._id}" class="tap-row">
+					<div class="flex h-9 w-9 items-center justify-center rounded-md bg-bg-elev text-base text-gold">
+						{statusIcon((log as any).parseStatus)}
 					</div>
 					<div class="flex-1">
-						<div class="text-[13px] font-semibold">{log.originalFilename}</div>
+						<div class="text-[13px] font-semibold">
+							{(log as any).originalName ?? (log as any).originalFilename ?? '—'}
+						</div>
 						<div class="mt-0.5 text-[11px] text-text-dim">
-							{formatDateTime(log.createdAt)}
-							{#if log.durationSeconds}· {formatDuration(log.durationSeconds)}{/if}
-							{#if log.alertCount}· {log.alertCount} alerts{/if}
+							{formatDateTime((log as any).createdAt)}
 						</div>
 					</div>
-					<Chip variant={statusVariant(log.parseStatus) as any}>{log.parseStatus}</Chip>
+					<Chip variant={statusVariant((log as any).parseStatus) as any}>
+						{statusLabel((log as any).parseStatus)}
+					</Chip>
 				</a>
 			{/each}
 		</div>

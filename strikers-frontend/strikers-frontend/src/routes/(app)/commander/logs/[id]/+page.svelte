@@ -35,10 +35,11 @@
 	);
 
 	function parseVariant(s?: string): any {
-		if (s === 'parsed') return 'ok';
-		if (s === 'failed') return 'danger';
-		return 'warn';
-	}
+    if (s === 'completed') return 'ok';
+    if (s === 'failed') return 'danger';
+    if (s === 'skipped') return 'info';
+    return 'warn';
+}
 
 	const chartData = $derived(() => {
 		if (!telemetry.length) return null;
@@ -129,7 +130,7 @@ $effect(() => {
 			<div class="flex flex-wrap items-start gap-3.5">
 				<div class="min-w-[200px] flex-1">
 					<div class="label-tiny">LOG ID · {log._id.slice(-8).toUpperCase()}</div>
-					<div class="font-display text-[18px]">{log.originalFilename}</div>
+					<div class="font-display text-[18px]">{(log as any).originalName ?? (log as any).originalFilename ?? '—'}</div>
 					<div class="mt-0.5 text-[12px] text-text-dim">Uploaded {formatDateTime(log.createdAt)}</div>
 					<div class="mt-2 flex flex-wrap gap-1.5">
 						<Chip variant={parseVariant(log.parseStatus)}>{log.parseStatus.toUpperCase()}</Chip>

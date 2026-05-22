@@ -129,7 +129,7 @@ export const useFlightLog = (id: string) =>
 		enabled: !!id,
 		refetchInterval: (q) => {
 			const log = q.state.data;
-			return log?.parseStatus === 'parsing' || log?.parseStatus === 'queued' ? 3000 : false;
+			return log?.parseStatus === 'processing' || log?.parseStatus === 'pending' ? 3000 : false;
 		}
 	});
 

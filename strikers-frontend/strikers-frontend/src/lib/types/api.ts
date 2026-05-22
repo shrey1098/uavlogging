@@ -172,7 +172,7 @@ export type CreateMissionRequest = {
 };
 
 // ---------- Flight Log ----------
-export type ParseStatus = 'queued' | 'parsing' | 'parsed' | 'failed';
+export type ParseStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'skipped';
 
 export type FlightLog = {
 	_id: string;

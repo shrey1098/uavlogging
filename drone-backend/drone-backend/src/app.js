@@ -46,7 +46,7 @@ const limiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many requests. Please try again later.' },
+  message: { success: false, message: 'Too many requests. Please try again later.', data: null, error: { code: 'rate_limited' } },
 });
 app.use('/api/', limiter);
 
@@ -54,7 +54,7 @@ app.use('/api/', limiter);
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
-  message: { success: false, message: 'Too many auth attempts. Try again in 15 minutes.' },
+  message: { success: false, message: 'Too many auth attempts. Try again in 15 minutes.', data: null, error: { code: 'rate_limited' } },
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
@@ -75,11 +75,15 @@ if (process.env.NODE_ENV !== 'test') {
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
+  // #008 — canonical envelope
   res.json({
     success: true,
-    status: 'ok',
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
+    message: 'ok',
+    data: {
+      status: 'ok',
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+    },
   });
 });
 
@@ -94,7 +98,13 @@ app.use('/api/readiness', readinessRoutes);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+  // #008 — canonical envelope
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+    data: null,
+    error: { code: 'not_found' },
+  });
 });
 
 // ── Global error handler ──────────────────────────────────────────────────────

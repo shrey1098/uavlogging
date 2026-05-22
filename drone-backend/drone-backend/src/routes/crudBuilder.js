@@ -1,31 +1,36 @@
 const express = require('express');
 const { protect, restrictTo } = require('../middleware/auth');
 const { buildScopeFilter } = require('../controllers/scopeFilter');
+const {
+  sendSuccess, sendCreated, sendNotFound,
+} = require('../utils/response');
 
 /**
- * buildCrudRouter
+ * buildCrudRouter — generic CRUD factory
+ *
  * @param {Model}    Model
- * @param {Array}    populateFields
- * @param {Function} preCreate
+ * @param {Array}    populateFields  paths to populate on read
+ * @param {Function} preCreate       (body, req) => mutatedBody, async ok
  * @param {Object}   options
- *   options.writeRole : string|string[]  — role(s) allowed to POST/PATCH/DELETE.
- *                       If set, write routes are restricted to those roles.
- *   options.readAll   : boolean          — if true, all authenticated users
- *                       read the full collection (no owner scope). Used for
- *                       shared reference data (drone inventory, #002).
+ *   options.writeRole : role(s) allowed to POST/PATCH/DELETE
+ *   options.readAll   : if true, all auth users read full collection
+ *
+ * Response shape: all routes use helpers (#008) — payload always under
+ * `data`, message is a string only.
  */
 const buildCrudRouter = (Model, populateFields = [], preCreate = null, options = {}) => {
   const router = express.Router();
   router.use(protect);
 
   const { writeRole = null, readAll = false } = options;
-
   const readFilter = (req) => (readAll ? {} : buildScopeFilter(req.user));
-
-  // write guard middleware — applied to POST/PATCH/DELETE only
   const writeGuard = writeRole
     ? restrictTo(...(Array.isArray(writeRole) ? writeRole : [writeRole]))
     : (_req, _res, next) => next();
+
+  const listKey  = Model.modelName.toLowerCase() + 's';
+  const docKey   = Model.modelName.toLowerCase();
+  const niceName = Model.modelName;
 
   router.get('/', async (req, res, next) => {
     try {
@@ -41,11 +46,8 @@ const buildCrudRouter = (Model, populateFields = [], preCreate = null, options =
       let q = Model.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit));
       populateFields.forEach((f) => (q = q.populate(f)));
       const [docs, total] = await Promise.all([q, Model.countDocuments(query)]);
-      res.json({
-        success: true,
-        message: 'Fetched',
-        data: { [Model.modelName.toLowerCase() + 's']: docs },
-        meta: { total, page: Number(page), pages: Math.ceil(total / Number(limit)) },
+      return sendSuccess(res, { [listKey]: docs }, 'Fetched', 200, {
+        total, page: Number(page), pages: Math.ceil(total / Number(limit)),
       });
     } catch (err) { next(err); }
   });
@@ -56,8 +58,8 @@ const buildCrudRouter = (Model, populateFields = [], preCreate = null, options =
       let q = Model.findOne(filter);
       populateFields.forEach((f) => (q = q.populate(f)));
       const doc = await q;
-      if (!doc) return res.status(404).json({ success: false, message: `${Model.modelName} not found` });
-      res.json({ success: true, data: { [Model.modelName.toLowerCase()]: doc } });
+      if (!doc) return sendNotFound(res, niceName);
+      return sendSuccess(res, { [docKey]: doc });
     } catch (err) { next(err); }
   });
 
@@ -66,22 +68,17 @@ const buildCrudRouter = (Model, populateFields = [], preCreate = null, options =
       let body = { ...req.body, owner: req.user._id };
       if (preCreate) body = await preCreate(body, req);
       const doc = await Model.create(body);
-      res.status(201).json({
-        success: true,
-        message: `${Model.modelName} created`,
-        data: { [Model.modelName.toLowerCase()]: doc },
-      });
+      return sendCreated(res, { [docKey]: doc }, `${niceName} created`);
     } catch (err) { next(err); }
   });
 
   router.patch('/:id', writeGuard, async (req, res, next) => {
     try {
-      // super_admin may edit any record; otherwise scope to owner
       const scope = req.user.role === 'super_admin' ? {} : buildScopeFilter(req.user);
       const filter = { _id: req.params.id, ...scope };
       const doc = await Model.findOneAndUpdate(filter, req.body, { new: true, runValidators: true });
-      if (!doc) return res.status(404).json({ success: false, message: `${Model.modelName} not found` });
-      res.json({ success: true, message: 'Updated', data: { [Model.modelName.toLowerCase()]: doc } });
+      if (!doc) return sendNotFound(res, niceName);
+      return sendSuccess(res, { [docKey]: doc }, 'Updated');
     } catch (err) { next(err); }
   });
 
@@ -90,8 +87,8 @@ const buildCrudRouter = (Model, populateFields = [], preCreate = null, options =
       const scope = req.user.role === 'super_admin' ? {} : buildScopeFilter(req.user);
       const filter = { _id: req.params.id, ...scope };
       const doc = await Model.findOneAndDelete(filter);
-      if (!doc) return res.status(404).json({ success: false, message: `${Model.modelName} not found` });
-      res.json({ success: true, message: `${Model.modelName} deleted` });
+      if (!doc) return sendNotFound(res, niceName);
+      return sendSuccess(res, null, `${niceName} deleted`);
     } catch (err) { next(err); }
   });
 

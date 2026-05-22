@@ -99,7 +99,11 @@ exports.getLogs = async (req, res, next) => {
     const skip = (Number(page) - 1) * Number(limit);
     const [logs, total] = await Promise.all([
       FlightLog.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit))
-        .populate('mission', 'name status missionType'),
+        .populate('mission', 'name status missionType')
+        // #007 — list view consumes summary + anomalyScore. Project only
+        // those; telemetry/events/alerts/flightPath are heavy and not
+        // needed in a list, so excluded explicitly.
+        .populate('parsedData', 'summary anomalyScore parserMeta.firmwareVersion parserMeta.autopilotType'),
       FlightLog.countDocuments(filter),
     ]);
 

@@ -38,15 +38,17 @@
 							>
 								<td class="font-mono text-gold">{log._id.slice(-8).toUpperCase()}</td>
 								<td>{formatDateTime(log.createdAt)}</td>
-								<td>{log.originalFilename}</td>
+								<td>{(log as any).originalName ?? (log as any).originalFilename ?? '—'}</td>
 								<td>{formatDuration(log.durationSeconds)}</td>
 								<td>
 									<Chip
-										variant={log.parseStatus === 'parsed'
-											? 'ok'
-											: log.parseStatus === 'failed'
-												? 'danger'
-												: 'warn'}
+										variant={log.parseStatus === 'completed'
+    ? 'ok'
+    : log.parseStatus === 'failed'
+        ? 'danger'
+        : log.parseStatus === 'skipped'
+            ? 'info'
+            : 'warn'}
 									>
 										{log.parseStatus}
 									</Chip>
