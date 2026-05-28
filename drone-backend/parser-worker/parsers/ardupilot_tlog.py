@@ -42,10 +42,16 @@ def parse(file_path: str) -> dict:
             ts = getattr(msg, '_timestamp', None)
 
             if msg_type == 'GLOBAL_POSITION_INT':
+                lat = msg.lat / 1e7
+                lng = msg.lon / 1e7
+                if lat == 0.0 and lng == 0.0:
+                    continue
+                if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                    continue
                 gps_records.append({
                     'time': ts,
-                    'lat': msg.lat / 1e7,
-                    'lng': msg.lon / 1e7,
+                    'lat': lat,
+                    'lng': lng,
                     'alt': msg.relative_alt / 1000.0,
                     'spd': math.sqrt((msg.vx**2 + msg.vy**2)) / 100.0,
                 })

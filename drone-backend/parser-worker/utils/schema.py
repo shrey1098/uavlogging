@@ -98,8 +98,8 @@ def make_flight_mode(mode: str, start_time: float, end_time: float) -> dict:
 
 
 def make_geojson_linestring(coords: list) -> dict:
-    """coords: list of [lng, lat, alt]"""
-    if not coords:
+    """coords: list of [lng, lat, alt]. Requires at least 2 points for valid GeoJSON."""
+    if not coords or len(coords) < 2:
         return None
     return {
         'type': 'LineString',

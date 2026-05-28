@@ -19,7 +19,8 @@
  */
 
 const fs = require('fs');
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const logger = require('./logger');
 
@@ -56,15 +57,38 @@ const buildR2Key = (flightLogId, storedName) =>
  * accepts the file. On success, the caller should delete the local
  * temp file — R2 is the canonical store.
  */
+/**
+ * Upload a local file to R2.
+ *
+ * Uses @aws-sdk/lib-storage Upload (multipart-capable). This is the
+ * correct path for stream bodies: it sets Content-Length per part,
+ * handles backpressure, and retries individual parts on transient
+ * failures. Plain PutObjectCommand with a Node ReadStream uses chunked
+ * transfer encoding which R2 rejects unreliably and the SDK marks as
+ * "non-retryable streaming request" — caused mid-PUT ECONNRESET on
+ * files ~30 MB+.
+ *
+ * On success, the caller should delete the local temp file — R2 is
+ * the canonical store.
+ */
 const putObject = async ({ key, filePath, contentType }) => {
   const body = fs.createReadStream(filePath);
-  const cmd = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-    Body: body,
-    ContentType: contentType || 'application/octet-stream',
+  const upload = new Upload({
+    client: r2,
+    params: {
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType || 'application/octet-stream',
+    },
+    // 5 MB parts; 4 parallel uploads. Conservative defaults that work
+    // well for the 0-500 MB file size band this app handles.
+    partSize: 5 * 1024 * 1024,
+    queueSize: 4,
+    leavePartsOnError: false, // auto-cleanup failed multipart on abort
   });
-  await r2.send(cmd);
+
+  await upload.done();
   logger.info(`R2 PUT ok: ${key}`);
   return key;
 };

@@ -117,21 +117,26 @@ const computeLiveOps = (realOpsCount) => {
 
 /**
  * Compute full readiness for one operator.
- * Returns the 0–100 weighted score plus the component breakdown.
+ * Returns the 0–100 weighted score, component breakdown, and the
+ * underlying OperatorProgress doc (so callers don't need to re-fetch).
  */
 const computeReadiness = async (ownerId) => {
-  let progress = await OperatorProgress.findOne({ owner: ownerId });
-  if (!progress) {
-    // No progress doc yet — operator has flown nothing counted
-    progress = {
-      lastFlightAt: null,
-      countedFlightSeconds: 0,
-      countedSorties: 0,
-      realOpsCount: 0,
-    };
-  }
+  // OperatorProgress lookup and Flight Quality computation are
+  // independent — fire them in parallel. (Previously sequential —
+  // halves the round-trip count per operator.)
+  const [progressDoc, fq] = await Promise.all([
+    OperatorProgress.findOne({ owner: ownerId }),
+    computeFlightQuality(ownerId),
+  ]);
 
-  const fq = await computeFlightQuality(ownerId);
+  const progress = progressDoc || {
+    // Synthetic empty progress — operator has flown nothing counted
+    lastFlightAt: null,
+    countedFlightSeconds: 0,
+    countedSorties: 0,
+    realOpsCount: 0,
+  };
+
   const components = {
     flightQuality: Math.round(fq.score),
     currency: Math.round(computeCurrency(progress.lastFlightAt)),
@@ -159,6 +164,9 @@ const computeReadiness = async (ownerId) => {
       countedFlightHours: parseFloat(((progress.countedFlightSeconds || 0) / 3600).toFixed(1)),
       realOpsCount: progress.realOpsCount,
     },
+    // The actual OperatorProgress document (or null if absent). Exposed
+    // so list/detail controllers don't have to re-fetch it for badges.
+    progressDoc: progressDoc || null,
   };
 };
 

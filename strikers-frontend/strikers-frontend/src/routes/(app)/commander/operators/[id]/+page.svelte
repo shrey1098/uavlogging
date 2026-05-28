@@ -297,7 +297,7 @@
 								{statusIcon((log as any).parseStatus)}
 							</div>
 							<div class="min-w-0 flex-1">
-								<div class="truncate text-[12px] font-semibold">{(log as any).originalFilename}</div>
+								<div class="truncate text-[12px] font-semibold">{(log as any).originalName ?? (log as any).originalFilename ?? '—'}</div>
 								<div class="mt-0.5 text-[10px] text-text-dim">{formatDateTime((log as any).createdAt)}</div>
 							</div>
 							<div class="text-right">

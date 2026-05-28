@@ -40,10 +40,9 @@ const buildBadges = (progress) => {
 exports.getMyReadiness = async (req, res, next) => {
   try {
     const readiness = await computeReadiness(req.user._id);
-    const progress = await OperatorProgress.findOne({ owner: req.user._id });
     return sendSuccess(res, {
       readiness,
-      badges: buildBadges(progress),
+      badges: buildBadges(readiness.progressDoc),
     });
   } catch (err) { next(err); }
 };
@@ -54,19 +53,20 @@ exports.getReadinessFor = async (req, res, next) => {
     if (req.user.role !== 'super_admin' && String(req.user._id) !== req.params.userId) {
       return sendForbidden(res, 'Operators may only view their own readiness');
     }
-    const target = await User.findById(req.params.userId).select('name role');
+    // Fire user lookup, readiness compute, and operator lookup in parallel —
+    // none of them depend on each other.
+    const [target, readiness, opDoc] = await Promise.all([
+      User.findById(req.params.userId).select('name role'),
+      computeReadiness(req.params.userId),
+      Operator.findOne({ linkedUser: req.params.userId }).select('_id name').lean(),
+    ]);
     if (!target) return sendNotFound(res, 'User');
 
-    const readiness = await computeReadiness(req.params.userId);
-    const progress = await OperatorProgress.findOne({ owner: req.params.userId });
-    const opDoc = await Operator.findOne({ linkedUser: req.params.userId })
-      .select('_id name')
-      .lean();
     return sendSuccess(res, {
       user: { _id: target._id, name: target.name, role: target.role },
       operator: opDoc ? { _id: opDoc._id, name: opDoc.name } : null,
       readiness,
-      badges: buildBadges(progress),
+      badges: buildBadges(readiness.progressDoc),
     });
   } catch (err) { next(err); }
 };
@@ -77,30 +77,31 @@ exports.listAllReadiness = async (req, res, next) => {
     if (req.user.role !== 'super_admin') {
       return sendForbidden(res, 'Super admin only');
     }
-    const operators = await User.find({ role: 'operator' }).select('name email').lean();
 
-    // Resolve Operator document per user (linkedUser → User._id).
-    // One query, mapped by linkedUser for O(1) lookup per row.
-    const userIds = operators.map((o) => o._id);
-    const opDocs = await Operator.find({ linkedUser: { $in: userIds } })
-      .select('_id name linkedUser')
-      .lean();
+    // Operators list and Operator-doc lookups can run together.
+    const [operators, opDocs] = await Promise.all([
+      User.find({ role: 'operator' }).select('name email').lean(),
+      // Fetch ALL operator docs in one query; map by linkedUser below.
+      Operator.find({}).select('_id name linkedUser').lean(),
+    ]);
     const opByUser = new Map(opDocs.map((d) => [String(d.linkedUser), d]));
 
-    const rows = [];
-    for (const op of operators) {
+    // Compute readiness for all operators IN PARALLEL.
+    // Was: 26 sequential calls × ~4 DB round trips each = 104 serial trips
+    // Now: 26 calls firing concurrently, ~2 round trips each (already
+    // parallelised inside computeReadiness). End-to-end latency drops from
+    // ~5-6s to roughly the slowest single operator's readiness compute.
+    const rows = await Promise.all(operators.map(async (op) => {
       const readiness = await computeReadiness(op._id);
-      const progress = await OperatorProgress.findOne({ owner: op._id });
       const opDoc = opByUser.get(String(op._id)) || null;
-      rows.push({
+      return {
         user: { _id: op._id, name: op.name, email: op.email },
-        // operator document _id for detail-page navigation (null if unlinked)
         operator: opDoc ? { _id: opDoc._id, name: opDoc.name } : null,
         readinessScore: readiness.score,
         components: readiness.components,
-        badges: buildBadges(progress),
-      });
-    }
+        badges: buildBadges(readiness.progressDoc),
+      };
+    }));
 
     rows.sort((a, b) => b.readinessScore - a.readinessScore);
     return sendSuccess(res, { operators: rows }, 'Unit readiness', 200, { total: rows.length });

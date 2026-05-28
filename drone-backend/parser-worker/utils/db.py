@@ -54,16 +54,25 @@ def mark_failed(db, log_id: str, error_message: str):
 
 
 def write_parsed_data(db, log_id: str, mission_id, owner_id, data: dict):
+    flight_log_id = ObjectId(log_id)
     doc = {
-        'flightLog': ObjectId(log_id),
+        'flightLog': flight_log_id,
         'mission': ObjectId(mission_id) if mission_id else None,
         'owner': ObjectId(owner_id) if owner_id else None,
-        'createdAt': datetime.now(timezone.utc),
         'updatedAt': datetime.now(timezone.utc),
         **data
     }
-    result = db.parsedflightdatas.insert_one(doc)
-    return result.inserted_id
+    # Upsert — handles reparse where a previous attempt left a partial document
+    result = db.parsedflightdatas.find_one_and_update(
+        {'flightLog': flight_log_id},
+        {'$set': doc, '$setOnInsert': {'createdAt': datetime.now(timezone.utc)}},
+        upsert=True,
+        return_document=True,
+    )
+    if result:
+        return result['_id']
+    found = db.parsedflightdatas.find_one({'flightLog': flight_log_id})
+    return found['_id'] if found else None
 
 
 def update_mission_stats(db, mission_id: str, summary: dict):

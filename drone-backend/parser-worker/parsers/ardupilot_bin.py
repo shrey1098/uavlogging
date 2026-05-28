@@ -46,14 +46,17 @@ def parse(file_path: str) -> dict:
 
             if msg_type == 'GPS':
                 if msg.Status >= 3:  # 3D fix
-                    gps_records.append({
-                        'time': msg.TimeUS / 1e6,
-                        'lat': msg.Lat,
-                        'lng': msg.Lng,
-                        'alt': msg.Alt,
-                        'spd': msg.Spd,
-                        'nsats': msg.NSats,
-                    })
+                    if msg.Lat == 0.0 and msg.Lng == 0.0:
+                        pass
+                    elif (-90 <= msg.Lat <= 90) and (-180 <= msg.Lng <= 180):
+                        gps_records.append({
+                            'time': msg.TimeUS / 1e6,
+                            'lat': msg.Lat,
+                            'lng': msg.Lng,
+                            'alt': msg.Alt,
+                            'spd': msg.Spd,
+                            'nsats': msg.NSats,
+                        })
 
             elif msg_type == 'ATT':
                 att_records.append({

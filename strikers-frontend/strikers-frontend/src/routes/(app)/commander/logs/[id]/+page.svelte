@@ -91,10 +91,42 @@ $effect(() => {
 		}).addTo(leafletMap);
 
 		const latLngs = c.map(p => [p[1], p[0]] as [number, number]);
-		const mid = Math.floor(latLngs.length / 2);
+		// Color path by flight mode
+const modeColors: Record<string, string> = {
+    LOITER: '#59b3d4',
+    LAND: '#c55555',
+    STABILIZE: '#888888',
+    ALT_HOLD: '#4ab394',
+    AUTO: '#a77aba',
+    RTL: '#ca8a45',
+    GUIDED: '#7ab44a',
+    POSHOLD: '#4a7ab4',
+    ACRO: '#d4a72c',
+};
 
-		L.polyline(latLngs.slice(0, mid + 1), { color: '#d4a72c', weight: 3, opacity: 1 }).addTo(leafletMap);
-		L.polyline(latLngs.slice(mid), { color: '#ff2d3f', weight: 3, opacity: 0.6 }).addTo(leafletMap);
+const telemetry = (pd?.telemetry ?? []) as Array<{ t: number }>;
+const flightModes = (pd?.flightModes ?? []) as Array<{ mode: string; startTime: number; endTime: number }>;
+
+function getModeColor(t: number): string {
+    if (!flightModes.length) return '#d4a72c';
+    for (const fm of flightModes) {
+        if (t >= fm.startTime && t <= fm.endTime) {
+            return modeColors[fm.mode] ?? '#d4a72c';
+        }
+    }
+    return '#d4a72c';
+}
+
+// Draw segments colored by mode
+for (let i = 0; i < latLngs.length - 1; i++) {
+    const t = telemetry[i]?.t ?? 0;
+    const color = getModeColor(t);
+    L.polyline([latLngs[i], latLngs[i + 1]], {
+        color,
+        weight: 3,
+        opacity: 1
+    }).addTo(leafletMap);
+}
 
 		L.circleMarker(latLngs[0], { radius: 7, color: '#d4a72c', fillColor: '#d4a72c', fillOpacity: 1 })
 			.bindTooltip('TAKEOFF', { permanent: true, direction: 'right', className: 'map-label' })
