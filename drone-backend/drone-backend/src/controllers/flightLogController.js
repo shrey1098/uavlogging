@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const FlightLog = require('../models/FlightLog');
 const Mission = require('../models/Mission');
+const User = require('../models/User');
 const { detectLogType } = require('../config/upload');
 const { putObject, buildR2Key } = require('../config/r2');
 const { sendSuccess, sendCreated, sendNotFound, sendError } = require('../utils/response');
@@ -31,11 +32,42 @@ exports.uploadLog = async (req, res, next) => {
       if (m) missionId = m._id;
     }
 
-    // #003 — Real Ops upload path: super_admin may assign the log to a
-    // specific operator. Otherwise owner is the uploader.
+    // Commander attribution path (#003 commander authority, broadened from
+    // Real-Ops-only to any upload):
+    //
+    //   super_admin uploads can be attributed to any operator via
+    //   `assignToOperatorUserId`. This applies whether or not isRealOps
+    //   is set — the underlying authority (commander writes any
+    //   operator's record) is the same; the Real-Ops flag is just one
+    //   trigger among others, not the full scope of that authority.
+    //
+    //   Validation: target must exist AND have role 'operator'. Refuses
+    //   attribution to another super_admin or any non-existent id. Bad
+    //   ids fail closed (400), not silently fall through to uploader.
+    //
+    //   For non-super_admin callers the field is ignored entirely.
     let ownerId = req.user._id;
-    if (isRealOps && req.body.assignToOperatorUserId) {
-      ownerId = req.body.assignToOperatorUserId;
+    if (req.user.role === 'super_admin' && req.body.assignToOperatorUserId) {
+      const target = await User.findById(req.body.assignToOperatorUserId).select('_id role');
+      if (!target) {
+        try { fs.unlinkSync(filePath); } catch (_) {}
+        return sendError(
+          res,
+          'assignToOperatorUserId references a user that does not exist',
+          400,
+          { code: 'invalid_assignee' }
+        );
+      }
+      if (target.role !== 'operator') {
+        try { fs.unlinkSync(filePath); } catch (_) {}
+        return sendError(
+          res,
+          'assignToOperatorUserId must reference a user with role=operator',
+          400,
+          { code: 'invalid_assignee_role' }
+        );
+      }
+      ownerId = target._id;
     }
 
     // Create the FlightLog FIRST so we have an _id for the R2 key.
@@ -63,8 +95,6 @@ exports.uploadLog = async (req, res, next) => {
       flightLog.r2Key = key;
       await flightLog.save({ validateBeforeSave: false });
     } catch (r2Err) {
-      // R2 PUT failed — clean up the half-created FlightLog and the
-      // temp file. Surface a 502 so the client can retry.
       logger.error(`R2 PUT failed for log ${flightLog._id}: ${r2Err.message}`);
       await FlightLog.deleteOne({ _id: flightLog._id }).catch(() => {});
       try { fs.unlinkSync(filePath); } catch (_) {}
@@ -76,9 +106,15 @@ exports.uploadLog = async (req, res, next) => {
       logger.warn(`Could not delete temp file ${filePath}: ${e.message}`);
     }
 
+    // Log includes attribution intent for audit trail when commander
+    // attributes a log to a different operator.
+    const attributedTo = String(ownerId) !== String(req.user._id)
+      ? ` (attributed by ${req.user._id} to operator ${ownerId})`
+      : '';
     logger.info(
       `Log uploaded: ${originalname} (${logType}) → R2 ${key} ` +
-      `by ${req.user._id} [time=${timeClass} type=${typeClass} realOps=${isRealOps}]`
+      `by ${req.user._id}${attributedTo} ` +
+      `[time=${timeClass} type=${typeClass} realOps=${isRealOps}]`
     );
 
     spawnParser(flightLog._id).catch((err) =>
@@ -91,10 +127,17 @@ exports.uploadLog = async (req, res, next) => {
 
 exports.getLogs = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, logType, parseStatus } = req.query;
+    const { page = 1, limit = 20, logType, parseStatus, owner } = req.query;
     const filter = { ...buildScopeFilter(req.user) };
     if (logType) filter.logType = logType;
     if (parseStatus) filter.parseStatus = parseStatus;
+
+    // super_admin may scope the list to a specific operator via ?owner=.
+    // For non-super_admin callers the param is ignored (buildScopeFilter
+    // already pins owner to their own _id and we don't let them override).
+    if (owner && req.user.role === 'super_admin') {
+      filter.owner = owner;
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
     const [logs, total] = await Promise.all([
@@ -118,7 +161,7 @@ exports.getLog = async (req, res, next) => {
     const filter = { _id: req.params.id, ...buildScopeFilter(req.user) };
     const log = await FlightLog.findOne(filter).populate('mission').populate('parsedData');
     if (!log) return sendNotFound(res, 'Flight log');
-    return sendSuccess(res, { log });
+    return sendSuccess(res, { flightLog: log });
   } catch (error) { next(error); }
 };
 
@@ -127,12 +170,13 @@ exports.reparseLog = async (req, res, next) => {
     const filter = { _id: req.params.id, ...buildScopeFilter(req.user) };
     const log = await FlightLog.findOne(filter);
     if (!log) return sendNotFound(res, 'Flight log');
-    if (log.parseStatus === 'processing') return sendError(res, 'Log is already being processed', 409);
 
     log.parseStatus = 'pending';
-    log.parseError = null;
+    log.parseError = undefined;
     log.parseStartedAt = null;
     log.parseCompletedAt = null;
+    // Reset reconciler marker so the new parse run gets counted.
+    log.progressAppliedAt = null;
     await log.save();
 
     spawnParser(log._id).catch((err) =>

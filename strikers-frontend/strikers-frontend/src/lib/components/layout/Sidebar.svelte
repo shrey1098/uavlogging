@@ -47,7 +47,8 @@
 			title: 'Operations',
 			items: [
 				{ href: '/commander/missions', label: 'Missions' },
-				{ href: '/commander/logs', label: 'All Flight Logs' }
+				{ href: '/commander/logs', label: 'All Flight Logs' },
+				{ href: '/commander/upload', label: 'Upload Log' }
 			]
 		},
 		{

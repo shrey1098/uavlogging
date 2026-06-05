@@ -3,9 +3,9 @@ import type { FlightLog, FlightLogUploadResponse, ListParams } from '$lib/types'
 
 export const flightLogsApi = {
 	async list(params?: ListParams): Promise<FlightLog[]> {
-		const { data } = await api.get<any>('/api/flight-logs', { params });
-		return extractList<FlightLog>(data.data, 'logs');
-	},
+    const { data } = await api.get<any>('/api/flight-logs', { params });
+    return extractList<FlightLog>(data.data, 'logs');
+},
 
 	async get(id: string): Promise<FlightLog> {
 		const { data } = await api.get<any>(`/api/flight-logs/${id}`);
@@ -13,34 +13,38 @@ export const flightLogsApi = {
 	},
 
 	async upload(
-		file: File,
-		droneId: string,
-		missionId?: string,
-		timeClass?: string,
-		typeClass?: string,
-		onProgress?: (percent: number) => void
-	): Promise<FlightLogUploadResponse> {
-		const form = new FormData();
-		form.append('logFile', file);
-		form.append('drone', droneId);
-		if (missionId) form.append('mission', missionId);
-		if (timeClass) form.append('timeClass', timeClass);
-		if (typeClass) form.append('typeClass', typeClass);
+    file: File,
+    droneId: string,
+    missionId?: string,
+    timeClass?: string,
+    typeClass?: string,
+    isRealOps?: boolean,
+    assignToOperatorUserId?: string,
+    onProgress?: (percent: number) => void
+): Promise<FlightLogUploadResponse> {
+    const form = new FormData();
+    form.append('logFile', file);
+    form.append('drone', droneId);
+    if (missionId) form.append('mission', missionId);
+    if (timeClass) form.append('timeClass', timeClass);
+    if (typeClass) form.append('typeClass', typeClass);
+    if (isRealOps) form.append('isRealOps', 'true');
+    if (assignToOperatorUserId) form.append('assignToOperatorUserId', assignToOperatorUserId);
 
-		const { data } = await api.post<any>(
-			'/api/flight-logs/upload',
-			form,
-			{
-				headers: { 'Content-Type': 'multipart/form-data' },
-				onUploadProgress: (e) => {
-					if (e.total && onProgress) {
-						onProgress(Math.round((e.loaded * 100) / e.total));
-					}
-				}
-			}
-		);
-		return { flightLog: data.data?.flightLog ?? data.data } as FlightLogUploadResponse;
-	},
+    const { data } = await api.post<any>(
+        '/api/flight-logs/upload',
+        form,
+        {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+                if (e.total && onProgress) {
+                    onProgress(Math.round((e.loaded * 100) / e.total));
+                }
+            }
+        }
+    );
+    return { flightLog: data.data?.flightLog ?? data.data } as FlightLogUploadResponse;
+},
 
 	async reparse(id: string): Promise<FlightLog> {
 		const { data } = await api.post<any>(`/api/flight-logs/${id}/reparse`);
@@ -49,5 +53,7 @@ export const flightLogsApi = {
 
 	async remove(id: string): Promise<void> {
 		await api.delete(`/api/flight-logs/${id}`);
-	}
+	},
+
 };
+

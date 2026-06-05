@@ -134,20 +134,23 @@ export const useFlightLog = (id: string) =>
 	});
 
 export function useUploadFlightLog() {
-	const qc = useQueryClient();
-	return createMutation({
-		mutationFn: ({ file, droneId, missionId, timeClass, typeClass, onProgress }: {
-			file: File;
-			droneId: string;
-			missionId?: string;
-			timeClass: 'day' | 'night';
-			typeClass: string;
-			onProgress?: (p: number) => void;
-		}) => flightLogsApi.upload(file, droneId, missionId, timeClass, typeClass, onProgress),
-		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
-		}
-	});
+    const qc = useQueryClient();
+    return createMutation({
+        mutationFn: ({ file, droneId, missionId, timeClass, typeClass, isRealOps, assignToOperatorUserId, onProgress }: {
+            file: File;
+            droneId: string;
+            missionId?: string;
+            timeClass: 'day' | 'night';
+            typeClass: string;
+            isRealOps?: boolean;
+            assignToOperatorUserId?: string;
+            onProgress?: (p: number) => void;
+        }) => flightLogsApi.upload(file, droneId, missionId, timeClass, typeClass, isRealOps, assignToOperatorUserId, onProgress),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
+            qc.invalidateQueries({ queryKey: ['readiness'] });
+        }
+    });
 }
 
 export const useReparseFlightLog = () => {
@@ -171,7 +174,7 @@ export function useOperatorReadiness(userId: string) {
 	return createQuery({
 		queryKey: ['readiness', userId],
 		queryFn: () => readinessApi.forOperator(userId),
-		enabled: !!userId && userId.length > 0
+		enabled: !!userId && userId.length > 0 && userId !== 'skip'
 	});
 }
 

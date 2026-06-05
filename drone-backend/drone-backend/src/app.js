@@ -23,18 +23,43 @@ const app = express();
 app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+// Each entry in ALLOWED_ORIGINS may be either an exact origin
+// (e.g. http://localhost:5173) OR a wildcard pattern using '*' as a
+// subdomain match (e.g. https://*.ngrok-free.app). Wildcards are
+// compiled to regex once at boot.
+const rawOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
   .split(',')
-  .map((o) => o.trim());
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const exactOrigins = new Set();
+const patternOrigins = [];
+
+for (const o of rawOrigins) {
+  if (o.includes('*')) {
+    // Escape regex specials except '*', then turn '*' into a non-greedy
+    // subdomain match. Only allow '*' in the host part, not the scheme.
+    const escaped = o
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[^.]+');
+    patternOrigins.push(new RegExp(`^${escaped}$`));
+  } else {
+    exactOrigins.add(o);
+  }
+}
+
+const isOriginAllowed = (origin) => {
+  if (exactOrigins.has(origin)) return true;
+  return patternOrigins.some((re) => re.test(origin));
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS blocked: ${origin}`));
-      }
+      // No origin header: server-to-server, curl, mobile native — allow.
+      if (!origin) return callback(null, true);
+      if (isOriginAllowed(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true,
   })

@@ -3,7 +3,7 @@
 	import { Panel, Button, Chip, Loading, ErrorState } from '$lib/components/ui';
 	import { extractError, formatDateTime, formatDuration } from '$lib/utils';
 
-	const query = useFlightLogs({ sort: '-createdAt' });
+	const query = useFlightLogs({ sort: '-createdAt', limit: 100 });
 </script>
 
 <div class="page-pad">

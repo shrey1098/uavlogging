@@ -1,22 +1,18 @@
 const mongoose = require('mongoose');
 
-/**
- * FlightLog — represents the raw uploaded log file.
- * One FlightLog → one uploaded file → parsed into ParsedFlightData.
- */
 const flightLogSchema = new mongoose.Schema(
   {
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true,
     },
     mission: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Mission',
       default: null,
     },
-    // File metadata
     originalName: {
       type: String,
       required: true,
@@ -96,6 +92,15 @@ const flightLogSchema = new mongoose.Schema(
       ref: 'ParsedFlightData',
       default: null,
     },
+    // #003 reconciliation marker — set by progressReconciler when the
+    // #003 gamification increment has been applied for this log.
+    // Idempotency: presence of this timestamp = already counted; absent
+    // = needs reconciliation. The reconciler queries on this field.
+    progressAppliedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     // Upload session info
     uploadedAt: {
       type: Date,
@@ -119,6 +124,8 @@ const flightLogSchema = new mongoose.Schema(
 flightLogSchema.index({ owner: 1, parseStatus: 1 });
 flightLogSchema.index({ owner: 1, logType: 1 });
 flightLogSchema.index({ checksum: 1 }); // for duplicate detection
+// Reconciler-driving index: finds completed logs not yet counted, fast.
+flightLogSchema.index({ parseStatus: 1, progressAppliedAt: 1 });
 
 flightLogSchema.virtual('fileSizeMB').get(function () {
   if (!this.fileSize) return null;

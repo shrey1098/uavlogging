@@ -37,10 +37,10 @@
 	const op = $derived(isMock ? mockOp : ($_opQuery?.data as any));
 	const linkedUserId = $derived(!isMock ? ((op as any)?.linkedUser ?? '') : '');
 
-	const _readinessQuery = useOperatorReadiness(isMock ? '' : linkedUserId);
+	const _readinessQuery = $derived.by(() => useOperatorReadiness(isMock ? '' : linkedUserId));
 	const rd = $derived(!isMock ? ($_readinessQuery?.data as OperatorReadiness | undefined) : null);
 
-	const _logsQuery = useFlightLogs(!isMock && linkedUserId ? { owner: linkedUserId, sort: '-createdAt' } : undefined);
+	const _logsQuery = $derived.by(() => useFlightLogs(!isMock && linkedUserId ? { owner: linkedUserId, sort: '-createdAt', limit: 100 } : undefined));
 	const liveLogs = $derived(!isMock ? ($_logsQuery?.data ?? []) : mockLogs);
 
 	// ── Resolved values ───────────────────────────────────────────────────
@@ -100,17 +100,19 @@
 		if (s >= 50) return 'rgb(212 167 44)';
 		return 'rgb(255 45 63)';
 	}
-	function anomalyColor(v: number | null) {
-		if (v == null) return 'rgb(80 80 80)';
-		if (v > 0.6) return 'rgb(255 45 63)';
-		if (v > 0.3) return 'rgb(212 167 44)';
-		return 'rgb(100 220 120)';
-	}
 	function statusIcon(s: string) {
-		if (s === 'parsed') return '✓';
-		if (s === 'failed') return '✗';
-		return '⏳';
-	}
+    if (s === 'completed') return '✓';
+    if (s === 'failed') return '✕';
+    if (s === 'skipped') return '—';
+    return '⏳';
+}
+
+function anomalyColor(v: number | null) {
+    if (v == null) return 'rgb(80 80 80)';
+    if (v > 60) return 'rgb(255 45 63)';
+    if (v > 30) return 'rgb(212 167 44)';
+    return 'rgb(100 220 120)';
+}
 
 	const initials = $derived(
 		((isMock ? mockOp.name : op?.name) || '').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??'
@@ -122,20 +124,23 @@
 	let infoOpen = $state(false);
 
 	onMount(() => {
-		setTimeout(() => { animated = true; }, 100);
-		const target = isMock ? mockScore : score;
-		const duration = 1200;
-		const start = performance.now();
-		function tick(now: number) {
-			const t = Math.min((now - start) / duration, 1);
-			const ease = 1 - Math.pow(1 - t, 3);
-			scoreAnimated = Math.round(ease * target);
-			if (t < 1) requestAnimationFrame(tick);
-		}
-		requestAnimationFrame(tick);
-	});
+    setTimeout(() => { animated = true; }, 100);
+});
 
-	$effect(() => { console.log('isMock:', isMock, 'id:', id, 'op:', op); });
+$effect(() => {
+    if (score === 0) return;
+    const target = score;
+    const duration = 1200;
+    const start = performance.now();
+    function tick(now: number) {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        scoreAnimated = Math.round(ease * target);
+        if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+});
+
 </script>
 
 <div class="page-pad">
@@ -292,7 +297,7 @@
 						<a href="/commander/logs/{(log as any)._id}" class="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-elevated">
 							<div
 								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[13px] font-bold"
-								style="background: {(log as any).parseStatus === 'parsed' ? 'rgba(100,220,120,0.1)' : (log as any).parseStatus === 'failed' ? 'rgba(255,45,63,0.1)' : 'rgba(212,167,44,0.1)'}; color: {(log as any).parseStatus === 'parsed' ? 'rgb(100 220 120)' : (log as any).parseStatus === 'failed' ? 'rgb(255 45 63)' : 'rgb(212 167 44)'}"
+								style="background: {(log as any).parseStatus === 'completed' ? 'rgba(100,220,120,0.1)' : (log as any).parseStatus === 'failed' ? 'rgba(255,45,63,0.1)' : 'rgba(212,167,44,0.1)'}; color: {(log as any).parseStatus === 'completed' ? 'rgb(100 220 120)' : (log as any).parseStatus === 'failed' ? 'rgb(255 45 63)' : 'rgb(212 167 44)'}"
 							>
 								{statusIcon((log as any).parseStatus)}
 							</div>
@@ -303,7 +308,7 @@
 							<div class="text-right">
 								<div class="text-[10px] text-text-dim">ANOM</div>
 								<div class="font-display text-[16px]" style="color: {anomalyColor((log as any).anomalyScore)}">
-									{(log as any).anomalyScore?.toFixed(2) ?? '—'}
+									{((log as any).parsedData?.anomalyScore ?? (log as any).anomalyScore) ?? '—'}
 								</div>
 							</div>
 							<span class="text-[14px] text-text-dim">›</span>

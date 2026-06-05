@@ -74,14 +74,13 @@
 
 			<div class="text-center">
 				<span class="text-[11px] text-text-secondary">
-					Forgot password? Ask your commander.
+					Forgot password? Contact STIFF.
 				</span>
 			</div>
 		</form>
 
 		<div class="mt-10 border-t border-border pt-5 text-center">
-			<div class="label-tiny">PRODUCED BY · STIFF</div>
-			<div class="label-tiny mt-1 text-gold">17 JAK LI · ALPHA COY</div>
+			<div class="label-tiny mt-1 text-gold">PRODUCED BY · STIFF</div>
 		</div>
 	</Panel>
 </div>
