@@ -35,9 +35,10 @@ export default {
 				}
 			},
 			fontFamily: {
-				mono: ['JetBrains Mono', 'monospace'],
-				geist: ['Geist Mono', 'JetBrains Mono', 'monospace'],
-				display: ['Barlow Condensed', 'JetBrains Mono', 'monospace']
+    			sans: ['Inter', 'system-ui', 'sans-serif'],
+    			mono: ['JetBrains Mono', 'monospace'],
+   				geist: ['Geist Mono', 'JetBrains Mono', 'monospace'],
+			    display: ['Barlow Condensed', 'sans-serif']
 			},
 			fontSize: {
 				tiny: ['9.5px', { lineHeight: '1.4', letterSpacing: '0.12em' }]

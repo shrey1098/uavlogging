@@ -4,12 +4,13 @@
 
 @layer base {
 	html,
+	html,
 	body {
-		@apply bg-bg-base text-text-primary;
-		font-family: 'Geist Mono', 'JetBrains Mono', monospace;
-		font-size: 13px;
-		letter-spacing: 0.01em;
-		-webkit-font-smoothing: antialiased;
+	    @apply bg-bg-base text-text-primary;
+	    font-family: 'Inter', system-ui, sans-serif;
+	    font-size: 15px;
+	    letter-spacing: 0.01em;
+	    -webkit-font-smoothing: antialiased;
 	}
 
 	body {

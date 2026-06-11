@@ -895,3 +895,206 @@ Once #005 is DONE on the backend side:
   Once #008 is DONE on both sides, the `extractList`/`extractRecord`
   helpers in the frontend can be simplified to assume `data.data`
   shape and the fallback path can be deleted, not just bypassed.
+
+---
+
+## #009 — Drone category analytics: operator training distribution per drone class
+
+- Date: 2026-05-22
+- Status: OPEN
+- Decision:
+  Add a drone-class analytics layer to the commander's operator view.
+  Commanders can filter the operator list by drone frameType and see,
+  per drone class: how many operators have flown it, total flight hours
+  on that class, and which operators have flown it.
+
+  ### New backend endpoint
+  `GET /api/analytics/drones/category-training`
+  Auth: `super_admin` only.
+
+  Response shape:
+  ```json
+  {
+    "data": {
+      "categories": [
+        {
+          "frameType": "quadcopter",
+          "operatorCount": 12,
+          "totalFlightHours": 48.5,
+          "operators": [
+            {
+              "userId": "<id>",
+              "operatorId": "<id>",
+              "name": "Rfn Sameer Ahmad",
+              "sorties": 14,
+              "flightHours": 6.2
+            }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+
+  Computation: aggregate `FlightLog` (completed parses only, non-
+  maintenance_test) → join `Drone` on `flightLog.drone` field →
+  group by `drone.frameType` → count distinct operators, sum
+  `parsedData.summary.flightDuration` (seconds → hours).
+
+  One problem to flag: `FlightLog` does not currently carry a `drone`
+  reference. The upload controller accepts `droneId` in the request
+  body but the FlightLog model has no `drone` field. This must be
+  added as part of #009's backend slice.
+
+  New field on `FlightLog`: `drone` — ObjectId ref to `Drone`,
+  nullable (legacy logs have no drone). Set at upload time from
+  `req.body.droneId`.
+
+  ### Commander UI changes
+  - Filter panel on `/commander/operators` list: dropdown of all
+    `frameType` values present in the fleet. Selecting one filters the
+    operator list to show only operators who have flown that class,
+    with sortie count and hours on that class shown in the row.
+  - New analytics panel on the commander dashboard or a dedicated
+    `/commander/analytics/drones` route: drone-class cards, each
+    showing operator count + total hours + operator list (expandable).
+    Routing decision (dashboard panel vs dedicated route) is
+    frontend-internal — no Part B entry needed for that choice.
+
+- Rationale:
+  Commander's core readiness question isn't just "is this operator
+  ready" — it's "do I have enough operators trained on the Trinetra
+  for a Trinetra tasking." Drone-class training distribution answers
+  that question directly. The filter on the operators list makes it
+  immediately actionable (select a drone class, see who's qualified).
+
+- Per-layer actions:
+  - Backend: Add `drone` field (ObjectId ref, nullable) to `FlightLog`
+    schema. Populate `flightLog.drone = droneId` in the upload
+    controller (the `droneId` is already accepted in `req.body` per
+    #002 but not persisted on the log). Implement
+    `GET /api/analytics/drones/category-training` with the aggregation
+    described above. Route is `super_admin` only. Join `Drone` to get
+    `frameType`; join `Operator` via `User._id → Operator.linkedUser`
+    to get operator names. Sum `parsedData.summary.flightDuration`
+    for hours.
+  - Parser: No action.
+  - Frontend: Add frameType filter dropdown to `/commander/operators`
+    list. Filter is client-side against the existing operator list if
+    operator count is small (26 operators); no new API call needed for
+    the filter itself. The analytics endpoint feeds a drone-class
+    breakdown panel — frontend decides placement (dashboard vs
+    dedicated route). Both consume the new
+    `/api/analytics/drones/category-training` endpoint.
+  - Seed: No action. Clean-slate logs; analytics will populate as
+    real flights come in.
+
+- Notes:
+  The `FlightLog.drone` field addition is a schema change and a
+  shared contract change — it is the reason this is a Part B entry
+  rather than a Notion-tracked frontend change. The analytics endpoint
+  is new API surface. Both cross the layer boundary.
+
+  `frameType` values in the current fleet (#001): `quadcopter`,
+  `hexacopter`, `fixed_wing`, `vtol`, `trg`, `fpv_quadcopter`.
+  The filter dropdown is populated dynamically from the fleet, not
+  hardcoded.
+
+  Legacy flight logs (uploaded before #009 lands) will have
+  `drone: null` and will be excluded from the analytics aggregation.
+  This is acceptable — the analytics reflect the current-state
+  training record, not a reconstructed history.
+
+---
+
+## #010 — Drop score: operator self-report at upload, commander-editable
+
+- Date: 2026-05-22
+- Status: OPEN
+- Decision:
+  When a flight log is uploaded with `typeClass === 'drop'`, the
+  operator may select a drop score. The score is a single shared
+  integer field — operator sets it at upload, commander may overwrite
+  it at any time. There is no separate operator/commander score.
+  Drop score does NOT feed into the readiness formula (#003 unchanged).
+
+  ### New field on `FlightLog`
+  `dropScore` — Integer, nullable, default null.
+  Allowed values: `0 | 10 | 25 | 50 | 75`.
+  Only meaningful when `typeClass === 'drop'`. For all other typeClass
+  values, `dropScore` must be null — backend enforces this.
+
+  ### Upload behaviour
+  - If `typeClass === 'drop'`: `dropScore` accepted from request body.
+    Must be one of the five allowed values or null. If a value outside
+    the allowed set is submitted, backend rejects with 400.
+  - If `typeClass !== 'drop'`: any submitted `dropScore` is silently
+    discarded. Backend forces `dropScore = null` regardless of what
+    was sent.
+
+  ### Edit behaviour
+  - `PATCH /api/flight-logs/:id/drop-score` — new dedicated endpoint.
+    Auth: `super_admin` only. Body: `{ dropScore: 0|10|25|50|75|null }`.
+    Validates allowed values, enforces `typeClass === 'drop'` on the
+    target log (returns 400 if not a drop sortie), updates the field.
+  - Operators cannot edit the score after upload. The upload is the
+    only operator-facing write path.
+
+  ### Display
+  - Operator flight debrief (`/operator/flights/:id`): if `typeClass
+    === 'drop'`, show the drop score prominently. If `dropScore` is
+    null, show "NOT SCORED" (operator may have not selected one).
+  - Commander log detail (`/commander/logs/:id`): same display, plus
+    an inline edit control (score selector: 0/10/25/50/75/—) visible
+    only to `super_admin`. Saving calls the new PATCH endpoint.
+  - Commander operator detail: in the flight log list rows, show
+    drop score inline for drop sorties only (small chip, not
+    prominent).
+
+- Rationale:
+  Drop accuracy is a distinct skill from general flight quality.
+  The anomaly score (#003) measures flight data quality, not whether
+  the payload landed on target. A dedicated drop score gives
+  commanders a direct assessment tool that operators participate in
+  (self-report) and commanders can calibrate (edit). Keeping it
+  out of the readiness formula preserves the formula's objectivity
+  — drop score is a human assessment, not a computed metric.
+  The five fixed values (0/10/25/50/75) prevent grade inflation from
+  a free-input field while giving enough resolution to be useful.
+
+- Per-layer actions:
+  - Backend: Add `dropScore` field to `FlightLog` schema (Number,
+    nullable, default null, no enum constraint at schema level —
+    validation is in the controller). Upload controller: if
+    `typeClass === 'drop'`, validate and persist `dropScore`; else
+    force null. Add `PATCH /api/flight-logs/:id/drop-score` route,
+    `super_admin` only. Validate allowed values
+    `[0, 10, 25, 50, 75, null]` and `typeClass === 'drop'` on target
+    log. Standard `sendSuccess` envelope.
+  - Parser: No action. Drop score is a human-assessed field; parser
+    does not produce or consume it.
+  - Frontend: Upload page — when `typeClass === 'drop'` is selected,
+    show a score selector (five buttons: 0 / 10 / 25 / 50 / 75 plus
+    a "Skip" / unset option). Selector hidden for all other typeClass
+    values. Submit `dropScore` (or omit if unset) in the upload
+    `FormData`. Operator flight debrief: render drop score if present,
+    "NOT SCORED" if null and typeClass is drop. Commander log detail:
+    same display plus inline edit control for `super_admin`; calls
+    `PATCH /api/flight-logs/:id/drop-score`. Commander operator detail:
+    show drop score chip on drop-sortie rows.
+  - Seed: No action.
+
+- Notes:
+  `dropScore: null` is valid and common — an operator may not score
+  their own drop (e.g. did not observe the result). "NOT SCORED" is
+  informative, not an error state. Commanders can fill it in later.
+
+  The PATCH endpoint is intentionally narrow — it edits only
+  `dropScore`, nothing else. This keeps the permission surface clean:
+  commanders editing a score cannot accidentally touch other log
+  fields through the same endpoint.
+
+  If future mission types (e.g. recce accuracy, navigation precision)
+  need similar scoring, the same pattern applies — a nullable integer
+  field + a dedicated PATCH endpoint per score type. Each would be a
+  new Part B entry at that time.
