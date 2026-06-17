@@ -11,6 +11,8 @@ router.post('/upload', upload.single('logFile'), flightLogController.uploadLog);
 router.get('/', flightLogController.getLogs);
 router.get('/:id', flightLogController.getLog);
 router.post('/:id/reparse', flightLogController.reparseLog);
+// #010 — commander-only drop score edit
+router.patch('/:id/drop-score', flightLogController.updateDropScore);
 router.delete('/:id', flightLogController.deleteLog);
 
 module.exports = router;

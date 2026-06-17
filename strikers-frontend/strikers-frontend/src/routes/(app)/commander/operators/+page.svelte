@@ -9,10 +9,13 @@
 	let search = $state('');
 
 	const filtered = $derived(
-		($query.data ?? []).filter((r) =>
-			search ? r.user?.name?.toLowerCase().includes(search.toLowerCase()) : true
-		)
-	);
+	($query.data ?? []).filter((r) => {
+		if (search && !r.user?.name?.toLowerCase().includes(search.toLowerCase())) return false;
+		const ids = qualifiedUserIds();
+		if (ids && !ids.has(r.user?._id)) return false;
+		return true;
+	})
+);
 
 	function scoreColor(s: number) {
 		if (s >= 75) return 'rgb(100 220 120)';
@@ -31,6 +34,27 @@
 		];
 		return entries.filter(e => e.tier > 0).sort((a, b) => b.tier - a.tier).slice(0, 3);
 	}
+	import { useDroneCategoryTraining } from '$lib/api/queries';
+
+const catQuery = useDroneCategoryTraining();
+let frameFilter = $state('');
+
+const frameTypes = $derived((($catQuery.data ?? []) as any[]).map(c => c.frameType));
+
+const qualifiedUserIds = $derived(() => {
+	if (!frameFilter) return null;
+	const cat = (($catQuery.data ?? []) as any[]).find(c => c.frameType === frameFilter);
+	return cat ? new Set(cat.operators.map((o: any) => o.userId)) : new Set();
+});
+
+const catHours = $derived(() => {
+	const map = new Map<string, { hours: number; sorties: number }>();
+	if (frameFilter) {
+		const cat = (($catQuery.data ?? []) as any[]).find(c => c.frameType === frameFilter);
+		cat?.operators.forEach((o: any) => map.set(o.userId, { hours: o.flightHours, sorties: o.sorties }));
+	}
+	return map;
+});
 </script>
 
 <div class="page-pad">
@@ -42,6 +66,16 @@
 	<div class="mb-3.5">
 		<input bind:value={search} class="input" placeholder="Search by name..." style="max-width: 240px" />
 	</div>
+	<div class="mb-3.5 flex flex-wrap items-center gap-2">
+	<input bind:value={search} class="input" placeholder="Search by name..." style="max-width: 240px" />
+	<select bind:value={frameFilter} class="input" style="max-width: 200px; font-size: 12px">
+		<option value="">All Drone Classes</option>
+		{#each frameTypes as ft}
+			<option value={ft}>{ft}</option>
+		{/each}
+	</select>
+	<Button href="/commander/analytics/drones" size="sm">📊 CLASS ANALYTICS</Button>
+</div>
 
 	{#if $query.isLoading}
 		<Loading label="Loading roster..." />
@@ -86,6 +120,9 @@
 	onclick={() => (window.location.href = `/commander/operators/${(r as any).operator?._id ?? r.user?._id}`)}
 >
 	<td class="font-semibold">{r.user?.name ?? '—'}</td>
+	{#if frameFilter && catHours().get(r.user?._id)}
+	<span class="ml-1.5 text-[10px] text-gold">· {catHours().get(r.user?._id)?.hours.toFixed(1)}h on {frameFilter}</span>
+{/if}
 	<td>
 		<div class="flex gap-1.5">
 			{#each topBadges(r.badges) as b}

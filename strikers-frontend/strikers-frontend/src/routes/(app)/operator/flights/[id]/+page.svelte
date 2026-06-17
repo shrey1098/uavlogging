@@ -158,6 +158,21 @@ $effect(() => {
 			{/each}
 		</div>
 
+		<!-- Drop Score -->
+		{#if log.typeClass === 'drop'}
+		<Panel class="mb-3.5 p-3.5">
+		<div class="label-tiny mb-2">DROP SCORE</div>
+		{#if log.dropScore != null}
+			<div class="flex items-baseline gap-2">
+				<span class="font-display text-4xl" style="color: {log.dropScore >= 50 ? 'rgb(100 220 120)' : log.dropScore >= 25 ? 'rgb(212 167 44)' : 'rgb(255 45 63)'}">{log.dropScore}</span>
+				<span class="text-[11px] text-text-dim">/ 75</span>
+			</div>
+		{:else}
+			<div class="text-[13px] text-text-dim">NOT SCORED</div>
+		{/if}
+	</Panel>
+	{/if}
+
 		<!-- Flight path map -->
 		<div class="label-tiny mb-2 mt-5">FLIGHT PATH</div>
 		<div class="corner relative overflow-hidden rounded-lg" style="height: 280px">

@@ -13,37 +13,38 @@ export const flightLogsApi = {
 	},
 
 	async upload(
-    file: File,
-    droneId: string,
-    missionId?: string,
-    timeClass?: string,
-    typeClass?: string,
-    isRealOps?: boolean,
-    assignToOperatorUserId?: string,
-    onProgress?: (percent: number) => void
+	file: File,
+	droneId: string,
+	missionId?: string,
+	timeClass?: string,
+	typeClass?: string,
+	isRealOps?: boolean,
+	assignToOperatorUserId?: string,
+	dropScore?: number | null,
+	onProgress?: (percent: number) => void
 ): Promise<FlightLogUploadResponse> {
-    const form = new FormData();
-    form.append('logFile', file);
-    form.append('drone', droneId);
-    if (missionId) form.append('mission', missionId);
-    if (timeClass) form.append('timeClass', timeClass);
-    if (typeClass) form.append('typeClass', typeClass);
-    if (isRealOps) form.append('isRealOps', 'true');
-    if (assignToOperatorUserId) form.append('assignToOperatorUserId', assignToOperatorUserId);
+	const form = new FormData();
+	form.append('logFile', file);
+	form.append('drone', droneId);
+	if (missionId) form.append('mission', missionId);
+	if (timeClass) form.append('timeClass', timeClass);
+	if (typeClass) form.append('typeClass', typeClass);
+	if (isRealOps) form.append('isRealOps', 'true');
+	if (assignToOperatorUserId) form.append('assignToOperatorUserId', assignToOperatorUserId);
+	if (typeClass === 'drop' && dropScore != null) form.append('dropScore', String(dropScore));
 
-    const { data } = await api.post<any>(
-        '/api/flight-logs/upload',
-        form,
-        {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (e) => {
-                if (e.total && onProgress) {
-                    onProgress(Math.round((e.loaded * 100) / e.total));
-                }
-            }
-        }
-    );
-    return { flightLog: data.data?.flightLog ?? data.data } as FlightLogUploadResponse;
+	const { data } = await api.post<any>('/api/flight-logs/upload', form, {
+		headers: { 'Content-Type': 'multipart/form-data' },
+		onUploadProgress: (e) => {
+			if (e.total && onProgress) onProgress(Math.round((e.loaded * 100) / e.total));
+		}
+	});
+	return { flightLog: data.data?.flightLog ?? data.data } as FlightLogUploadResponse;
+},
+
+async updateDropScore(id: string, dropScore: number | null): Promise<FlightLog> {
+	const { data } = await api.patch<any>(`/api/flight-logs/${id}/drop-score`, { dropScore });
+	return (data.data?.log ?? data.data?.flightLog ?? data.data) as FlightLog;
 },
 
 	async reparse(id: string): Promise<FlightLog> {

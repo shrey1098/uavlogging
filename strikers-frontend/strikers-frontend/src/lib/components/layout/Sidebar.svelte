@@ -39,6 +39,10 @@
 			title: 'Personnel',
 			items: [{ href: '/commander/operators', label: 'All Operators' }]
 		},
+		{ title: 'Command', items: [
+	{ href: '/commander', label: 'Dashboard' },
+	{ href: '/commander/analytics/drones', label: 'Class Analytics' }
+] },
 		{
 			title: 'Fleet',
 			items: [{ href: '/commander/drones', label: 'All Drones' }]

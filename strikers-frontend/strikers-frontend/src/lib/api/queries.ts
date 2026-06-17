@@ -18,6 +18,7 @@ import type {
 } from '$lib/types';
 
 import { readinessApi } from './readiness';
+import { analyticsApi } from './analytics';
 // ---------- Auth ----------
 export const useMe = () =>
 	createQuery({
@@ -136,16 +137,12 @@ export const useFlightLog = (id: string) =>
 export function useUploadFlightLog() {
     const qc = useQueryClient();
     return createMutation({
-        mutationFn: ({ file, droneId, missionId, timeClass, typeClass, isRealOps, assignToOperatorUserId, onProgress }: {
-            file: File;
-            droneId: string;
-            missionId?: string;
-            timeClass: 'day' | 'night';
-            typeClass: string;
-            isRealOps?: boolean;
-            assignToOperatorUserId?: string;
-            onProgress?: (p: number) => void;
-        }) => flightLogsApi.upload(file, droneId, missionId, timeClass, typeClass, isRealOps, assignToOperatorUserId, onProgress),
+       mutationFn: ({ file, droneId, missionId, timeClass, typeClass, isRealOps, assignToOperatorUserId, dropScore, onProgress }: {
+			file: File; droneId: string; missionId?: string;
+			timeClass: 'day' | 'night'; typeClass: string;
+			isRealOps?: boolean; assignToOperatorUserId?: string;
+			dropScore?: number | null; onProgress?: (p: number) => void;
+			}) => flightLogsApi.upload(file, droneId, missionId, timeClass, typeClass, isRealOps, assignToOperatorUserId, dropScore, onProgress),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
             qc.invalidateQueries({ queryKey: ['readiness'] });
@@ -184,3 +181,20 @@ export function useUnitReadiness() {
 		queryFn: () => readinessApi.unit()
 	});
 }
+
+export function useUpdateDropScore() {
+	const qc = useQueryClient();
+	return createMutation({
+		mutationFn: ({ id, dropScore }: { id: string; dropScore: number | null }) =>
+			flightLogsApi.updateDropScore(id, dropScore),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: queryKeys.flightLogs.all });
+		}
+	});
+}
+
+export const useDroneCategoryTraining = () =>
+	createQuery({
+		queryKey: ['analytics', 'drone-category-training'],
+		queryFn: () => analyticsApi.droneCategoryTraining()
+	});

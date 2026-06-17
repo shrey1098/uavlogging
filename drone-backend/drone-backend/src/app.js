@@ -16,6 +16,7 @@ const batteryRoutes = require('./routes/batteries');
 const missionRoutes = require('./routes/missions');
 const flightLogRoutes = require('./routes/flightLogs');
 const readinessRoutes = require('./routes/readiness');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 
@@ -115,6 +116,7 @@ app.get('/health', (_req, res) => {
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/drones', droneRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/operators', operatorRoutes);
 app.use('/api/batteries', batteryRoutes);
 app.use('/api/missions', missionRoutes);

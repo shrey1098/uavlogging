@@ -13,64 +13,66 @@ const flightLogSchema = new mongoose.Schema(
       ref: 'Mission',
       default: null,
     },
+    // #009 — airframe reference. Nullable: legacy logs (pre-#009) have
+    // none. Set at upload from req.body.drone / droneId. Drives the
+    // drone-class training analytics aggregation.
+    drone: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Drone',
+      default: null,
+      index: true,
+    },
     originalName: {
       type: String,
       required: true,
     },
     storedName: {
       type: String,
-      // No longer required — multer temp filename, not durable.
-      // #005: superseded by r2Key as the canonical reference.
     },
-    // Pre-#005 local disk path. Retained for backward compatibility only;
-    // not used after upload completes. Multer's temp dir is treated as
-    // ephemeral pre-PUT staging. Do not rely on this field after upload.
     filePath: {
       type: String,
     },
-    // #005 — canonical R2 object reference. Required on completed uploads.
-    // Convention: `flight-logs/<flightLogId>/<storedName>`
-    // The database stores the bucket-relative key only. Presigned URLs
-    // are minted fresh per parse dispatch — never stored.
+    // #005 — canonical R2 object reference.
     r2Key: {
       type: String,
       default: null,
       index: true,
     },
     fileSize: {
-      type: Number, // bytes
+      type: Number,
     },
     mimeType: {
       type: String,
     },
-    // Log type detection
     logType: {
       type: String,
       enum: ['ardupilot_bin', 'ardupilot_tlog', 'px4_ulg', 'csv', 'kml', 'skydroid', 'unknown'],
       default: 'unknown',
       index: true,
     },
-    // ── #003 — Gamification classification (set at upload) ──────────────
-    // Time axis — single-select, operator-set
+    // ── #003 — Gamification classification ──────────────────────────────
     timeClass: {
       type: String,
       enum: ['day', 'night'],
       default: null,
     },
-    // Type axis — single-select, operator-set.
-    // maintenance_test increments NOTHING (excluded from all gamification).
     typeClass: {
       type: String,
       enum: ['surveillance', 'drop', 'obstacle', 'navigation', 'fpv', 'maintenance_test'],
       default: null,
     },
-    // #003 — Real Ops classification. TRAINING by default.
-    // Settable to true ONLY by super_admin via Real-Ops upload path (#002).
     isRealOps: {
       type: Boolean,
       default: false,
     },
-    // Parse status
+    // #010 — Drop score. Human-assessed accuracy for drop sorties only.
+    // Allowed values 0|10|25|50|75 (validated in controller). Null = not
+    // scored (valid + common). MUST be null when typeClass !== 'drop';
+    // controller enforces that invariant.
+    dropScore: {
+      type: Number,
+      default: null,
+    },
     parseStatus: {
       type: String,
       enum: ['pending', 'processing', 'completed', 'failed', 'skipped'],
@@ -84,30 +86,23 @@ const flightLogSchema = new mongoose.Schema(
       stack: { type: String },
       code: { type: String },
     },
-    // Parser version used
     parserVersion: { type: String },
-    // Link to parsed data
     parsedData: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ParsedFlightData',
       default: null,
     },
-    // #003 reconciliation marker — set by progressReconciler when the
-    // #003 gamification increment has been applied for this log.
-    // Idempotency: presence of this timestamp = already counted; absent
-    // = needs reconciliation. The reconciler queries on this field.
     progressAppliedAt: {
       type: Date,
       default: null,
       index: true,
     },
-    // Upload session info
     uploadedAt: {
       type: Date,
       default: Date.now,
     },
     checksum: {
-      type: String, // MD5 or SHA256 for dedup
+      type: String,
     },
     notes: {
       type: String,
@@ -123,9 +118,10 @@ const flightLogSchema = new mongoose.Schema(
 
 flightLogSchema.index({ owner: 1, parseStatus: 1 });
 flightLogSchema.index({ owner: 1, logType: 1 });
-flightLogSchema.index({ checksum: 1 }); // for duplicate detection
-// Reconciler-driving index: finds completed logs not yet counted, fast.
+flightLogSchema.index({ checksum: 1 });
 flightLogSchema.index({ parseStatus: 1, progressAppliedAt: 1 });
+// #009 — analytics aggregation walks completed logs by drone.
+flightLogSchema.index({ drone: 1, parseStatus: 1 });
 
 flightLogSchema.virtual('fileSizeMB').get(function () {
   if (!this.fileSize) return null;

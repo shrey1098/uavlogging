@@ -5,7 +5,28 @@
 	import { extractError, formatDateTime, formatDuration } from '$lib/utils';
 	import type { Mission, Drone } from '$lib/types';
 	import { onMount, onDestroy } from 'svelte';
+	import { useUpdateDropScore } from '$lib/api/queries';
+	import { isCommander } from '$lib/stores';
 
+	const dropMutation = useUpdateDropScore();
+	let editingDrop = $state(false);
+	let dropError = $state<string | null>(null);
+	const DROP_VALUES = [0, 10, 25, 50, 75];
+
+	async function saveDropScore(val: number | null) {
+		dropError = null;
+		try {
+			await $dropMutation.mutateAsync({ id: log._id, dropScore: val });
+			await $query.refetch();
+			editingDrop = false;
+		} catch (err) {
+			const code = (err as any)?.response?.data?.error?.code;
+			if (code === 'forbidden') dropError = 'Only commander can edit.';
+			else if (code === 'invalid_drop_score') dropError = 'Invalid score value.';
+			else if (code === 'not_a_drop_sortie') dropError = 'Not a drop sortie.';
+			else dropError = 'Failed to update score.';
+		}
+	}
 	const id = $derived($page.params.id);
 	const query = $derived.by(() => useFlightLog(id));
 	const log = $derived($query.data);
@@ -228,6 +249,42 @@ for (let i = 0; i < latLngs.length - 1; i++) {
 			</div>
 		</div>
 
+		<!-- Drop Score-->
+		 {#if log.typeClass === 'drop'}
+			<Panel class="mb-3.5 p-3.5">
+				<div class="mb-2 flex items-center justify-between">
+					<div class="label-tiny">DROP SCORE</div>
+					{#if $isCommander && !editingDrop}
+						<button onclick={() => (editingDrop = true)} class="text-[10px] text-gold hover:underline">✎ EDIT</button>
+					{/if}
+				</div>
+			
+				{#if editingDrop}
+					<div class="grid grid-cols-6 gap-1.5">
+						{#each DROP_VALUES as v}
+							<button onclick={() => saveDropScore(v)} disabled={$dropMutation.isPending}
+								class="rounded border py-2 text-[12px] font-bold transition-colors"
+								style="border-color: {log.dropScore === v ? 'rgb(212 167 44)' : 'rgba(255,255,255,0.1)'}; color: {log.dropScore === v ? 'rgb(212 167 44)' : 'rgba(255,255,255,0.5)'}"
+							>{v}</button>
+						{/each}
+						<button onclick={() => saveDropScore(null)} disabled={$dropMutation.isPending}
+							class="rounded border border-white/10 py-2 text-[12px] font-bold text-text-dim">—</button>
+					</div>
+					<button onclick={() => (editingDrop = false)} class="mt-2 text-[10px] text-text-dim hover:underline">Cancel</button>
+				{:else if log.dropScore != null}
+					<div class="flex items-baseline gap-2">
+						<span class="font-display text-4xl" style="color: {log.dropScore >= 50 ? 'rgb(100 220 120)' : log.dropScore >= 25 ? 'rgb(212 167 44)' : 'rgb(255 45 63)'}">{log.dropScore}</span>
+						<span class="text-[11px] text-text-dim">/ 75</span>
+					</div>
+				{:else}
+					<div class="text-[13px] text-text-dim">NOT SCORED</div>
+				{/if}
+				
+				{#if dropError}
+					<div class="mt-2 text-[10px] text-scarlet-bright">⚠ {dropError}</div>
+				{/if}
+			</Panel>
+		{/if}
 		<!-- Flight modes -->
 		{#if flightModes.length > 0}
 			<Panel class="mb-3.5 p-3.5">

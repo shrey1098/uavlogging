@@ -20,6 +20,8 @@
 	let isRealOps = $state(false);
 	let error = $state<string | null>(null);
 	let successMsg = $state<string | null>(null);
+	let dropScore = $state<number | null>(null);
+	const DROP_VALUES = [0, 10, 25, 50, 75];
 
 	const typeOptions = [
 		{ value: 'surveillance', label: 'Surveillance' },
@@ -183,6 +185,28 @@
 				{/each}
 			</select>
 		</div>
+		{#if typeClass === 'drop'}
+	<div class="mt-3">
+		<div class="label-tiny mb-1.5">DROP SCORE · OPTIONAL</div>
+		<div class="grid grid-cols-6 gap-1.5">
+			{#each DROP_VALUES as v}
+				<button
+					type="button"
+					onclick={() => (dropScore = v)}
+					class="rounded border py-2 text-[12px] font-bold transition-colors"
+					style="border-color: {dropScore === v ? 'rgb(212 167 44)' : 'rgba(255,255,255,0.1)'}; color: {dropScore === v ? 'rgb(212 167 44)' : 'rgba(255,255,255,0.4)'}; background: {dropScore === v ? 'rgba(212,167,44,0.1)' : 'transparent'}"
+				>{v}</button>
+			{/each}
+			<button
+				type="button"
+				onclick={() => (dropScore = null)}
+				class="rounded border py-2 text-[12px] font-bold transition-colors"
+				style="border-color: {dropScore === null ? 'rgb(110 92 88)' : 'rgba(255,255,255,0.1)'}; color: {dropScore === null ? 'rgb(168 150 144)' : 'rgba(255,255,255,0.4)'}; background: {dropScore === null ? 'rgba(255,255,255,0.05)' : 'transparent'}"
+			>—</button>
+		</div>
+		<div class="mt-1 text-[10px] text-text-dim">Score the drop accuracy, or leave unscored.</div>
+	</div>
+	{/if}
 
 		<!-- Real Ops -->
 		<div>

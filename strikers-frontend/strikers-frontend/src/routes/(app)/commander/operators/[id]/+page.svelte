@@ -281,6 +281,12 @@ $effect(() => {
 			</Panel>
 		</div>
 
+		{#if (log as any).typeClass === 'drop' && (log as any).dropScore != null}
+	<div class="rounded border border-gold/30 bg-gold/10 px-1.5 py-0.5 text-[9px] font-bold text-gold">
+		DROP {(log as any).dropScore}
+	</div>
+{/if}
+
 		<!-- Flight history -->
 		<Panel class="mt-3.5 overflow-hidden p-0">
 			<div class="flex items-center justify-between border-b border-border px-4 py-2.5">

@@ -194,9 +194,11 @@ export type FlightLog = {
 	alertCount?: number;
 
 	mission?: string | Mission; // optional — nullable per #002
-	drone?: string | Drone;
+	dropScore?: number | null;
+	drone?: string | { _id: string; name: string; model?: string; frameType?: string } | null;
 	owner: string;
 
+	
 	telemetry?: TelemetryPoint[];
 	events?: FlightEvent[];
 	alerts?: FlightAlert[];
