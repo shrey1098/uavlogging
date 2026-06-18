@@ -23,13 +23,13 @@
 		{ key: 'FPV', tier: 2, count: 11 }, { key: 'Real Ops', tier: 2, count: 5 }
 	];
 	const mockLogs = [
-		{ _id: 'mock1', originalFilename: 'pokhran_isr_01.bin', createdAt: '2026-05-10T08:30:00Z', parseStatus: 'parsed', anomalyScore: 0.12 },
-		{ _id: 'mock2', originalFilename: 'night_nav_patrol.ulg', createdAt: '2026-05-07T21:15:00Z', parseStatus: 'parsed', anomalyScore: 0.31 },
-		{ _id: 'mock3', originalFilename: 'drop_run_sector4.bin', createdAt: '2026-05-03T14:45:00Z', parseStatus: 'parsed', anomalyScore: 0.05 },
-		{ _id: 'mock4', originalFilename: 'fpv_obstacle_train.csv', createdAt: '2026-04-28T09:00:00Z', parseStatus: 'parsed', anomalyScore: 0.44 },
-		{ _id: 'mock5', originalFilename: 'surv_border_run.tlog', createdAt: '2026-04-21T06:30:00Z', parseStatus: 'parsed', anomalyScore: 0.08 },
-		{ _id: 'mock6', originalFilename: 'maintenance_check.log', createdAt: '2026-04-15T11:00:00Z', parseStatus: 'failed', anomalyScore: null },
-		{ _id: 'mock7', originalFilename: 'night_isr_02.bin', createdAt: '2026-04-10T22:00:00Z', parseStatus: 'parsed', anomalyScore: 0.19 }
+		{ _id: 'mock1', originalName: 'pokhran_isr_01.bin', createdAt: '2026-05-10T08:30:00Z', parseStatus: 'completed', typeClass: 'surveillance', parsedData: { anomalyScore: 12 } },
+		{ _id: 'mock2', originalName: 'night_nav_patrol.ulg', createdAt: '2026-05-07T21:15:00Z', parseStatus: 'completed', typeClass: 'navigation', parsedData: { anomalyScore: 31 } },
+		{ _id: 'mock3', originalName: 'drop_run_sector4.bin', createdAt: '2026-05-03T14:45:00Z', parseStatus: 'completed', typeClass: 'drop', dropScore: 50, parsedData: { anomalyScore: 5 } },
+		{ _id: 'mock4', originalName: 'fpv_obstacle_train.csv', createdAt: '2026-04-28T09:00:00Z', parseStatus: 'completed', typeClass: 'fpv', parsedData: { anomalyScore: 44 } },
+		{ _id: 'mock5', originalName: 'surv_border_run.tlog', createdAt: '2026-04-21T06:30:00Z', parseStatus: 'completed', typeClass: 'surveillance', parsedData: { anomalyScore: 8 } },
+		{ _id: 'mock6', originalName: 'maintenance_check.log', createdAt: '2026-04-15T11:00:00Z', parseStatus: 'failed', typeClass: 'maintenance_test', parsedData: null },
+		{ _id: 'mock7', originalName: 'night_isr_02.bin', createdAt: '2026-04-10T22:00:00Z', parseStatus: 'completed', typeClass: 'surveillance', parsedData: { anomalyScore: 19 } }
 	];
 
 	// ── Live API ──────────────────────────────────────────────────────────
@@ -101,18 +101,17 @@
 		return 'rgb(255 45 63)';
 	}
 	function statusIcon(s: string) {
-    if (s === 'completed') return '✓';
-    if (s === 'failed') return '✕';
-    if (s === 'skipped') return '—';
-    return '⏳';
-}
-
-function anomalyColor(v: number | null) {
-    if (v == null) return 'rgb(80 80 80)';
-    if (v > 60) return 'rgb(255 45 63)';
-    if (v > 30) return 'rgb(212 167 44)';
-    return 'rgb(100 220 120)';
-}
+		if (s === 'completed') return '✓';
+		if (s === 'failed') return '✕';
+		if (s === 'skipped') return '—';
+		return '⏳';
+	}
+	function anomalyColor(v: number | null) {
+		if (v == null) return 'rgb(80 80 80)';
+		if (v > 60) return 'rgb(255 45 63)';
+		if (v > 30) return 'rgb(212 167 44)';
+		return 'rgb(100 220 120)';
+	}
 
 	const initials = $derived(
 		((isMock ? mockOp.name : op?.name) || '').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??'
@@ -123,24 +122,21 @@ function anomalyColor(v: number | null) {
 	let scoreAnimated = $state(0);
 	let infoOpen = $state(false);
 
-	onMount(() => {
-    setTimeout(() => { animated = true; }, 100);
-});
+	onMount(() => { setTimeout(() => { animated = true; }, 100); });
 
-$effect(() => {
-    if (score === 0) return;
-    const target = score;
-    const duration = 1200;
-    const start = performance.now();
-    function tick(now: number) {
-        const t = Math.min((now - start) / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
-        scoreAnimated = Math.round(ease * target);
-        if (t < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-});
-
+	$effect(() => {
+		if (score === 0) return;
+		const target = score;
+		const duration = 1200;
+		const start = performance.now();
+		function tick(now: number) {
+			const t = Math.min((now - start) / duration, 1);
+			const ease = 1 - Math.pow(1 - t, 3);
+			scoreAnimated = Math.round(ease * target);
+			if (t < 1) requestAnimationFrame(tick);
+		}
+		requestAnimationFrame(tick);
+	});
 </script>
 
 <div class="page-pad">
@@ -281,12 +277,6 @@ $effect(() => {
 			</Panel>
 		</div>
 
-		{#if (log as any).typeClass === 'drop' && (log as any).dropScore != null}
-	<div class="rounded border border-gold/30 bg-gold/10 px-1.5 py-0.5 text-[9px] font-bold text-gold">
-		DROP {(log as any).dropScore}
-	</div>
-{/if}
-
 		<!-- Flight history -->
 		<Panel class="mt-3.5 overflow-hidden p-0">
 			<div class="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -311,9 +301,14 @@ $effect(() => {
 								<div class="truncate text-[12px] font-semibold">{(log as any).originalName ?? (log as any).originalFilename ?? '—'}</div>
 								<div class="mt-0.5 text-[10px] text-text-dim">{formatDateTime((log as any).createdAt)}</div>
 							</div>
+							{#if (log as any).typeClass === 'drop' && (log as any).dropScore != null}
+								<div class="rounded border border-gold/30 bg-gold/10 px-1.5 py-0.5 text-[9px] font-bold text-gold">
+									DROP {(log as any).dropScore}
+								</div>
+							{/if}
 							<div class="text-right">
 								<div class="text-[10px] text-text-dim">ANOM</div>
-								<div class="font-display text-[16px]" style="color: {anomalyColor((log as any).anomalyScore)}">
+								<div class="font-display text-[16px]" style="color: {anomalyColor((log as any).parsedData?.anomalyScore ?? (log as any).anomalyScore)}">
 									{((log as any).parsedData?.anomalyScore ?? (log as any).anomalyScore) ?? '—'}
 								</div>
 							</div>

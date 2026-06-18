@@ -901,7 +901,7 @@ Once #005 is DONE on the backend side:
 ## #009 — Drone category analytics: operator training distribution per drone class
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend] — CLOSED
 - Decision:
   Add a drone-class analytics layer to the commander's operator view.
   Commanders can filter the operator list by drone frameType and see,
@@ -1010,7 +1010,7 @@ Once #005 is DONE on the backend side:
 ## #010 — Drop score: operator self-report at upload, commander-editable
 
 - Date: 2026-05-22
-- Status: OPEN
+- Status: DONE [backend], DONE [frontend] — CLOSED
 - Decision:
   When a flight log is uploaded with `typeClass === 'drop'`, the
   operator may select a drop score. The score is a single shared
